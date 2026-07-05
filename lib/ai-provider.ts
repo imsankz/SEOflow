@@ -1,30 +1,22 @@
 /**
- * Unified AI provider — abstracts Gemini, OpenRouter, and Anthropic Claude behind one API.
+ * Unified AI provider — delegates to the lib/providers/ abstraction.
  *
  * Usage:
  *   import { aiChat, aiChatWithRetry } from '../lib/ai-provider';
  *   const response = await aiChatWithRetry(prompt, 'content-audit');
  *
- * Provider selection (first available wins):
- *   1. AI_PROVIDER=claude → Anthropic Claude (requires ANTHROPIC_API_KEY)
- *   2. AI_PROVIDER=openrouter → OpenRouter (requires OPENROUTER_API_KEY)
- *   3. AI_PROVIDER=gemini (or unset) → Gemini 2.5 Flash (requires GEMINI_API_KEY)
- *   4. If preferred provider fails, falls back to the other available providers
+ * Provider selection is handled by lib/providers/index.ts:
+ *   1. AI_PROVIDER env var (fails closed)
+ *   2. Auto-detect: claude-cli → codex-cli → gemini-cli → anthropic → openrouter → gemini
  *
- * Task-specific model routing:
- *   content-audit: Claude 3.5 Sonnet (direct) or Gemini 2.5 Flash (free, large context)
- *   seo-review:    Claude 3.5 Haiku (direct or OpenRouter)
- *   fact-check:    Claude 3.5 Haiku (direct or OpenRouter)
+ * Task-specific routing is passed through the provider's tier mechanism.
  */
-import { geminiChat, geminiChatWithRetry } from './gemini-client';
-import { openrouterChatWithRetry, getModelConfig as getOpenRouterModelConfig, hasOpenRouterKey } from './openrouter-client';
-import { claudeChatWithRetry, getModelConfig as getClaudeModelConfig, hasClaudeKey } from './claude-client';
+import { selectProvider, logProviderStatus } from './providers';
 import { loadConfig } from './config';
 
-type ProviderName = 'gemini' | 'openrouter' | 'claude';
+type ProviderName = 'gemini' | 'openrouter' | 'claude' | 'claude-cli' | 'codex-cli' | 'gemini-cli';
 
 // ─── Per-run call counter ─────────────────────────────────────────────────────
-// Shared across all aiChat calls in a single pipeline run.
 const _runCounter = { count: 0 };
 
 /** Reset the run-level call counter (call at the start of each pipeline run). */
@@ -52,49 +44,30 @@ function checkBudget(task: string): boolean {
   return true;
 }
 
-function getPreferredProvider(): ProviderName {
-  const env = process.env.AI_PROVIDER?.toLowerCase().trim();
-  if (env === 'claude' && hasClaudeKey()) return 'claude';
-  if (env === 'openrouter' && hasOpenRouterKey()) return 'openrouter';
-  if (env === 'gemini' && hasGemini()) return 'gemini';
-
-  // Auto-detect: try Claude first, then OpenRouter, then Gemini
-  if (hasClaudeKey()) return 'claude';
-  if (hasOpenRouterKey()) return 'openrouter';
-  return 'gemini';
+/** Map legacy task names to provider tiers */
+function taskToTier(task: string): 'synthesis' | 'routing' {
+  const synthesisTasks = ['content-audit', 'seo-review', 'generate', 'cluster', 'fact-check'];
+  return synthesisTasks.includes(task) ? 'synthesis' : 'routing';
 }
-
-const hasGemini = (): boolean => !!process.env.GEMINI_API_KEY;
 
 /**
  * Log available AI providers and current config.
  */
-export function logAiStatus(): void {
-  if (hasClaudeKey()) console.log('   Claude AI: connected (Claude 3.5 Haiku/Sonnet)');
-  else console.log('   ⚠️  ANTHROPIC_API_KEY not set — Claude disabled');
-
-  if (hasOpenRouterKey()) {
-    console.log(`   OpenRouter: connected (300+ models available)`);
+export async function logAiStatus(): Promise<void> {
+  await logProviderStatus();
+  const preferred = process.env.AI_PROVIDER?.toLowerCase().trim();
+  if (preferred) {
+    console.log(`   → Primary provider: ${preferred} (set via AI_PROVIDER)`);
   } else {
-    console.log('   ⚠️  OPENROUTER_API_KEY not set — OpenRouter disabled');
+    console.log('   → Auto-detecting provider on first use');
   }
-
-  if (hasGemini()) console.log('   Gemini AI: connected (gemini-2.5-flash)');
-  else console.log('   ⚠️  GEMINI_API_KEY not set — Gemini disabled');
-
-  const preferred = getPreferredProvider();
-  if (preferred === 'claude') console.log(`   → Primary provider: Claude (set AI_PROVIDER=claude)`);
-  else if (preferred === 'openrouter') console.log(`   → Primary provider: OpenRouter (set AI_PROVIDER=openrouter)`);
-  else console.log(`   → Primary provider: Gemini (set AI_PROVIDER=gemini or unset)`);
 }
 
 /**
  * Send a prompt to the best available AI provider.
  *
- * Tries preferred provider → fallback provider → null.
- *
  * @param prompt - The prompt text
- * @param task - Task identifier for model routing ('content-audit', 'seo-review', 'fact-check')
+ * @param task - Task identifier for model routing
  * @returns Response text or null
  */
 export async function aiChat(
@@ -103,54 +76,28 @@ export async function aiChat(
 ): Promise<string | null> {
   if (!checkBudget(task)) return null;
   _runCounter.count++;
-  const preferred = getPreferredProvider();
 
-  // Try preferred provider
-  if (preferred === 'claude' && hasClaudeKey()) {
-    const config = getClaudeModelConfig(task);
-    const result = await claudeChatWithRetry(prompt, config, 1);
-    if (result) return result;
-  } else if (preferred === 'openrouter' && hasOpenRouterKey()) {
-    const config = getOpenRouterModelConfig(task);
-    const result = await openrouterChatWithRetry(prompt, config, 1);
-    if (result) return result;
-  } else if (preferred === 'gemini' && hasGemini()) {
-    const result = await geminiChat(prompt);
-    if (result) return result;
+  try {
+    const provider = await selectProvider();
+    const result = await provider.chat({
+      tier: taskToTier(task),
+      systemPrompt: '',
+      messages: [{ role: 'user', content: prompt }],
+    });
+    return result?.text ?? null;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error';
+    console.error(`     AI provider error: ${msg}`);
+    return null;
   }
-
-  // Fallback to other providers
-  const availableProviders = [];
-  if (preferred !== 'claude' && hasClaudeKey()) availableProviders.push('claude');
-  if (preferred !== 'openrouter' && hasOpenRouterKey()) availableProviders.push('openrouter');
-  if (preferred !== 'gemini' && hasGemini()) availableProviders.push('gemini');
-
-  for (const provider of availableProviders) {
-    console.log(`     Falling back to ${provider}...`);
-    if (provider === 'claude') {
-      const result = await claudeChatWithRetry(prompt, getClaudeModelConfig(task), 1);
-      if (result) return result;
-    } else if (provider === 'openrouter') {
-      const result = await openrouterChatWithRetry(prompt, getOpenRouterModelConfig(task), 1);
-      if (result) return result;
-    } else if (provider === 'gemini') {
-      const result = await geminiChat(prompt);
-      if (result) return result;
-    }
-  }
-
-  return null;
 }
 
 /**
  * Send a prompt with automatic retries across providers.
  *
- * Retries up to maxRetries times on the preferred provider, then
- * falls back to the other provider once, then gives up.
- *
  * @param prompt - The prompt text
  * @param task - Task identifier for model routing
- * @param maxRetries - Number of retries on primary provider (default: 3)
+ * @param maxRetries - Number of retries (default: 3)
  * @returns Response text or null
  */
 export async function aiChatWithRetry(
@@ -160,39 +107,32 @@ export async function aiChatWithRetry(
 ): Promise<string | null> {
   if (!checkBudget(task)) return null;
   _runCounter.count++;
-  const preferred = getPreferredProvider();
 
-  // Try preferred provider with retries
-  if (preferred === 'claude' && hasClaudeKey()) {
-    const config = getClaudeModelConfig(task);
-    const result = await claudeChatWithRetry(prompt, config, maxRetries);
-    if (result) return result;
-  } else if (preferred === 'openrouter' && hasOpenRouterKey()) {
-    const config = getOpenRouterModelConfig(task);
-    const result = await openrouterChatWithRetry(prompt, config, maxRetries);
-    if (result) return result;
-  } else if (preferred === 'gemini' && hasGemini()) {
-    const result = await geminiChatWithRetry(prompt, maxRetries);
-    if (result) return result;
-  }
+  const tier = taskToTier(task);
 
-  // Fallback to other providers (no retries — we already retried above)
-  const availableProviders = [];
-  if (preferred !== 'claude' && hasClaudeKey()) availableProviders.push('claude');
-  if (preferred !== 'openrouter' && hasOpenRouterKey()) availableProviders.push('openrouter');
-  if (preferred !== 'gemini' && hasGemini()) availableProviders.push('gemini');
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const provider = await selectProvider();
+      const result = await provider.chat({
+        tier,
+        systemPrompt: '',
+        messages: [{ role: 'user', content: prompt }],
+      });
+      if (result?.text) return result.text;
 
-  for (const provider of availableProviders) {
-    console.log(`     ${preferred} failed, falling back to ${provider}...`);
-    if (provider === 'claude') {
-      const result = await claudeChatWithRetry(prompt, getClaudeModelConfig(task), 1);
-      if (result) return result;
-    } else if (provider === 'openrouter') {
-      const result = await openrouterChatWithRetry(prompt, getOpenRouterModelConfig(task), 1);
-      if (result) return result;
-    } else if (provider === 'gemini') {
-      const result = await geminiChat(prompt);
-      if (result) return result;
+      if (attempt < maxRetries) {
+        const delay = attempt * 5000;
+        console.log(`     Retrying in ${delay / 1000}s (attempt ${attempt}/${maxRetries})...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error';
+      if (attempt < maxRetries) {
+        console.log(`     Provider error: ${msg} — retrying in ${attempt * 5}s...`);
+        await new Promise(r => setTimeout(r, attempt * 5000));
+      } else {
+        console.error(`     AI provider failed after ${maxRetries} attempts: ${msg}`);
+      }
     }
   }
 

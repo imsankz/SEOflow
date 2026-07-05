@@ -6,7 +6,7 @@
  * matrices for better SEO performance.
  */
 
-import { WebSearch } from 'some-search-library'; // Note: This would need to be replaced with actual search integration
+// Note: This would need to be replaced with actual search integration
 
 export interface ClusterKeyword {
   keyword: string;

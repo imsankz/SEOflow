@@ -101,7 +101,8 @@ export class BrokenLinksChecker {
         if (response.status >= 300 && response.status < 400) {
           const location = response.headers.get('location');
           if (location) {
-            current = this.resolveUrl(location, url);
+            const resolved = this.resolveUrl(location, url);
+          if (resolved) current = resolved;
           } else {
             break;
           }

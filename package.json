@@ -6,6 +6,15 @@
   "bin": {
     "seoflow": "./dist/bin/cli.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/imsankz/seoflow.git"
+  },
+  "homepage": "https://github.com/imsankz/seoflow#readme",
+  "bugs": {
+    "url": "https://github.com/imsankz/seoflow/issues"
+  },
+  "author": "Sankalp (https://github.com/imsankz)",
   "exports": {
     ".": "./dist/index.js",
     "./pipeline": "./dist/pipeline/steps.js",
@@ -27,13 +36,18 @@
     "dev": "node build.mjs --watch",
     "prepublishOnly": "node build.mjs",
     "seoflow": "npx tsx run.ts",
+    "seoflow:init": "npx tsx run.ts init",
     "seoflow:dry": "npx tsx run.ts --dry-run",
+    "seoflow:audit": "npx tsx run.ts audit",
     "seoflow:status": "npx tsx run.ts status",
     "seoflow:generate": "npx tsx run.ts generate",
     "seoflow:publish": "npx tsx run.ts publish",
     "seoflow:cluster": "npx tsx run.ts cluster",
     "seoflow:brief": "npx tsx run.ts brief",
     "seoflow:learn": "npx tsx run.ts learn",
+    "seoflow:orchestrate": "npx tsx run.ts orchestrate",
+    "seoflow:brain": "npx tsx run.ts brain",
+    "seoflow:vault": "npx tsx run.ts vault",
     "install:repo": "bash ./install.sh",
     "uninstall:repo": "bash ./uninstall.sh",
     "test": "npx tsx --test tests/**/*.test.ts",
@@ -48,12 +62,27 @@
     "pipeline",
     "content-optimization",
     "keyword-research",
-    "audit"
+    "audit",
+    "ai-seo",
+    "programmatic-seo",
+    "gsc",
+    "search-console",
+    "schema-org",
+    "internal-linking",
+    "content-audit",
+    "neuronwriter",
+    "mdx",
+    "frontmatter",
+    "technical-seo",
+    "eeat",
+    "ai-content"
   ],
   "license": "MIT",
   "devDependencies": {
+    "@types/node": "^26.1.0",
     "esbuild": "^0.24.0",
-    "tsx": "^4.19.0"
+    "tsx": "^4.19.0",
+    "typescript": "^6.0.3"
   },
   "dependencies": {
     "node-fetch": "^3.3.2"

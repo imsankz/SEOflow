@@ -48,6 +48,7 @@ export class AhrefsClient {
       }
 
       if (!PythonManager.isPythonAvailable()) {
+        console.error('AHREFS_API_KEY is set but Python is not available — cannot run ahrefs_keywords script');
         return this.fallbackResearch(seed);
       }
 

@@ -13,9 +13,9 @@
  *
  * Config:
  *   seoflow.config.json → "siteUrl" is used as the GSC property URL.
- *   Set GSC_SITE_URL in env to override (useful for sc-domain: properties).
  *
- * Falls back to CSV gracefully if ADC is not available.
+ * Optional dependency: `npm install googleapis` for live GSC API access.
+ * Works without it — falls back to CSV mode.
  */
 
 import https from 'https';
@@ -34,6 +34,7 @@ let _available: boolean | null = null;
 async function getAccessToken(): Promise<{ token: string; projectId?: string } | null> {
   try {
     // Dynamic import so the pipeline doesn't break if googleapis isn't installed
+    // @ts-ignore — googleapis is an optional dep installed via `npm install googleapis`
     const { google } = await import('googleapis');
     const auth = new google.auth.GoogleAuth({
       scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],

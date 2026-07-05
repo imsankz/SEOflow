@@ -6,6 +6,8 @@
  */
 import fs from 'fs';
 import path from 'path';
+import type { BusinessType } from './brain/types';
+import { suggestBusinessType } from './business-types/overlays';
 
 export interface SeoFlowConfig {
   siteName: string;
@@ -30,6 +32,13 @@ export interface SeoFlowConfig {
    * "wordpress" — future: REST API adapter.
    */
   contentFormat?: 'mdx' | 'markdown' | 'wordpress';
+
+  /**
+   * Business type for strategy overlays, FLOW framework, and AI prompt tuning.
+   * Options: travel, saas, ecommerce, affiliate, lead-gen-b2b, publisher-news,
+   * local-seo-services, blog, other (default: auto-detect from contentDomain)
+   */
+  businessType?: BusinessType;
 
   /**
    * Default image search context when no tag/category is available.
@@ -178,6 +187,18 @@ export function getWritingSample(contentType?: string): string | undefined {
 
 export function getContentDomain(): string {
   return loadConfig().contentDomain || 'blog';
+}
+
+/** Get the configured business type, or auto-detect from contentDomain */
+export function getBusinessType(): BusinessType {
+  const cfg = loadConfig();
+  if (cfg.businessType) return cfg.businessType;
+  return suggestBusinessType(getContentDomain());
+}
+
+/** Get a usable client slug from site config */
+export function getClientSlug(): string {
+  return loadConfig().siteName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
 
 export function getImageSearchFallback(): string {

@@ -5,6 +5,7 @@
  */
 
 import { PythonManager } from '../python/python-manager';
+import { execSync } from 'child_process';
 import path from 'path';
 
 export interface Backlink {
@@ -53,9 +54,9 @@ export class BacklinkAnalyzer {
         return this.mockResult(url);
       }
 
-      let bingResult = {};
+      let bingData = {};
       if (includeBing) {
-        const bingResult = PythonManager.run({
+        const result = PythonManager.run({
           scriptName: 'bing_webmaster',
           args: [
             `--url "${url}"`,
@@ -65,16 +66,16 @@ export class BacklinkAnalyzer {
           timeout: 60000,
         });
 
-        if (bingResult.code === 0) {
-          bingResult = JSON.parse(bingResult.stdout);
+        if (result.code === 0) {
+          bingData = JSON.parse(result.stdout);
         }
       }
 
       // If Moz is enabled, run additional analysis
-      let mozResult = {};
+      let mozData = {};
       if (includeMoz && process.env.MOZ_API_KEY) {
         try {
-          const mozResult = PythonManager.run({
+          const result = PythonManager.run({
             scriptName: 'moz_api',
             args: [
               `--url "${url}"`,
@@ -83,8 +84,8 @@ export class BacklinkAnalyzer {
             timeout: 60000,
           });
 
-          if (mozResult.code === 0) {
-            mozResult = JSON.parse(mozResult.stdout);
+          if (result.code === 0) {
+            mozData = JSON.parse(result.stdout);
           }
         } catch (error) {
           console.warn('Moz API call failed:', error);
@@ -92,7 +93,7 @@ export class BacklinkAnalyzer {
       }
 
       // If Common Crawl is enabled
-      let commonCrawlResult = {};
+      let commonCrawlData = {};
       if (includeCommonCrawl) {
         try {
           const ccResult = PythonManager.run({
@@ -105,14 +106,14 @@ export class BacklinkAnalyzer {
           });
 
           if (ccResult.code === 0) {
-            commonCrawlResult = JSON.parse(ccResult.stdout);
+            commonCrawlData = JSON.parse(ccResult.stdout);
           }
         } catch (error) {
           console.warn('Common Crawl analysis failed:', error);
         }
       }
 
-      return this.mergeResults(bingResult, mozResult, commonCrawlResult);
+      return this.mergeResults(bingData, mozData, commonCrawlData);
     } catch (error: any) {
       console.error('Backlink analysis failed:', error.message);
       return this.mockResult(url);

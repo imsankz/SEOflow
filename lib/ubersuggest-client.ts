@@ -19,6 +19,7 @@ import fs from 'fs';
 import path from 'path';
 import type { KeywordResearchResult } from './types';
 import { loadConfig } from './config';
+import { selectProvider } from './providers';
 
 export interface CachedResearch {
   slug: string;
@@ -92,7 +93,20 @@ export async function researchKeywords(
     return cached.result;
   }
 
-  // Not cached — tell the user what to run
+  // Try AI fallback before giving up
+  try {
+    const result = await aiFallbackResearch(seed, context);
+    if (result) {
+      cacheKeywordResults(slug, seed, result);
+      console.log(`     🤖 AI fallback: keyword research generated via AI for "${seed}"`);
+      return result;
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.log(`     ⚠️ AI fallback failed for "${seed}": ${msg}`);
+  }
+
+  // Not cached, AI fallback failed — tell the user what to run
   printMcpCommand(seed, slug, context);
 
   return {
@@ -131,6 +145,53 @@ export function cacheKeywordResults(
 
   saveCache(cache);
   console.log(`     💾 Saved keyword research to cache: ${cachePath()}`);
+}
+
+/**
+ * Fallback keyword research using the available AI provider.
+ * Called when cache misses and no MCP results are available.
+ */
+async function aiFallbackResearch(
+  seed: string,
+  context: string
+): Promise<KeywordResearchResult | null> {
+  console.log(`     🔍 AI fallback: researching "${seed}"...`);
+
+  const provider = await selectProvider();
+  const result = await provider.chat({
+    tier: 'routing',
+    systemPrompt: 'You are an SEO keyword research expert. Return ONLY valid JSON.',
+    messages: [{
+      role: 'user',
+      content: `Generate keyword research for the seed keyword '${seed}' in the context of '${context}'. Return a JSON object with: focusKeyword, searchVolume (number, estimate), difficulty (number 1-100, estimate), relatedKeywords (array of {keyword, volume, difficulty}), suggestions (array of {keyword, volume, difficulty, cpc (string), intent (string)}). Return ONLY valid JSON.`,
+    }],
+    temperature: 0.3,
+  });
+
+  if (!result?.text) return null;
+
+  const text = result.text.trim();
+  const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const jsonStr = jsonMatch ? jsonMatch[1] : text;
+  const parsed = JSON.parse(jsonStr);
+
+  return {
+    focusKeyword: parsed.focusKeyword || seed,
+    suggestions: (parsed.suggestions || []).map((s: { keyword?: string; volume?: number; difficulty?: number; cpc?: string; intent?: string }) => ({
+      keyword: s.keyword ?? seed,
+      volume: s.volume ?? 0,
+      difficulty: s.difficulty ?? 0,
+      cpc: s.cpc ?? '0',
+      intent: s.intent ?? '',
+    })),
+    relatedKeywords: (parsed.relatedKeywords || []).map((r: { keyword?: string } | string) =>
+      typeof r === 'string' ? r : (r.keyword ?? '')
+    ),
+    searchVolume: parsed.searchVolume ?? 0,
+    difficulty: parsed.difficulty ?? 0,
+    clusterScore: parsed.clusterScore ?? 0,
+    source: 'ai-fallback',
+  } as unknown as KeywordResearchResult;
 }
 
 /**

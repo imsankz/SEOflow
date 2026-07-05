@@ -6,7 +6,8 @@
 
 import type { StepInput, StepOutput } from '../lib/types';
 import { getPSIInstance, validateUrl, type PSIResult, type CrUXResult, type LCPBreakdown } from '../lib/technical/psi';
-import { checkBrokenLinks, checkRedirectChains } from '../lib/technical/broken-links';
+import { checkBrokenLinks, checkRedirectChains, checkCanonicalTag, checkHreflangTags, checkSitemap, checkRobotsTxt, checkMobileFriendly } from '../lib/technical/broken-links';
+import { getSiteUrl, loadConfig } from '../lib/config';
 
 export interface TechnicalAuditResult {
   psi: PSIResult;
@@ -28,8 +29,11 @@ export interface TechnicalAuditResult {
 export async function stepTechnicalAudit(input: StepInput): Promise<StepOutput & { data?: TechnicalAuditResult }> {
   const changes: string[] = [];
 
-  // Validate URL
-  if (!validateUrl(input.slug)) {
+  const siteUrl = getSiteUrl().replace(/\/$/, '');
+  const blogPrefix = loadConfig().blogPrefix || '/';
+  const url = `${siteUrl}${blogPrefix}${input.slug}`;
+
+  if (!validateUrl(url)) {
     changes.push('⚠️  URL validation failed');
     return { content: input.content, frontmatter: input.frontmatter, changes };
   }
@@ -38,23 +42,23 @@ export async function stepTechnicalAudit(input: StepInput): Promise<StepOutput &
   const psi = getPSIInstance(process.env.GOOGLE_API_KEY);
 
   try {
-    console.log(`     📊 Running technical SEO audit for ${input.slug}`);
+    console.log(`     📊 Running technical SEO audit for ${url}`);
 
     // Run PSI, CrUX, and other checks
     const [psiResult, cruxResult, lcpBreakdown, brokenLinks, redirectChains, canonicalTag, hreflangTags, sitemapResult, robotsResult, mobileResult] = await Promise.all([
-      psi.run(input.slug),
-      psi.getCrUX(input.slug),
-      psi.getLCPBreakdown(input.slug),
-      checkBrokenLinks(input.slug),
-      checkRedirectChains(input.slug),
-      checkCanonicalTag(input.slug),
-      checkHreflangTags(input.slug),
-      checkSitemap(input.slug),
-      checkRobotsTxt(input.slug),
-      checkMobileFriendly(input.slug),
+      psi.run(url),
+      psi.getCrUX(url),
+      psi.getLCPBreakdown(url),
+      checkBrokenLinks(url),
+      checkRedirectChains(url),
+      checkCanonicalTag(url),
+      checkHreflangTags(url),
+      checkSitemap(url),
+      checkRobotsTxt(url),
+      checkMobileFriendly(url),
     ]);
 
-    const auditResult = analyzeTechnicalData(psiResult, cruxResult, lcpBreakdown, brokenLinks, redirectChains, canonicalTag, hreflangTags, sitemapResult, robotsResult);
+    const auditResult = analyzeTechnicalData(psiResult, cruxResult, lcpBreakdown, brokenLinks, redirectChains, canonicalTag ?? undefined, hreflangTags, sitemapResult, robotsResult);
 
     // Log findings
     if (auditResult.issues.length > 0) {

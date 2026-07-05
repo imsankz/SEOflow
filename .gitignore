@@ -5,4 +5,7 @@ seoflow.config.json
 data/
 dist/
 .seoflow/
+.mcp.json
+opencode.json
+*.bak
 .DS_Store

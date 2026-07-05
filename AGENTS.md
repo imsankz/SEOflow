@@ -32,7 +32,12 @@ npm run seoflow:publish -- --go # actually publish
 npm run seoflow cluster <seed>  # semantic topic cluster plan
 npm run seoflow brief <keyword> # SEO content brief
 npm run seoflow learn           # show learning insights
-```
+npm run seoflow brain           # brain summary + vault stats + next actions
+npm run seoflow vault           # show vault summary directly
+npm run seoflow orchestrate     # orchestrator-based pipeline with dependency resolution
+npm run seoflow run <slug>      # alias for orchestrate
+npm run seoflow audit https://<url>  # live URL SEO audit
+\`\`\`
 
 ## SEO Agents (interactive)
 
@@ -82,6 +87,13 @@ After install, agents are available in your AI tool. Example commands:
     reports/                # PDF report generation
     drift/                  # SEO drift monitoring
     backlinks/              # Backlink analysis
+    brain/                  # Brain vault system (hot.md + log.md + vault notes)
+    providers/              # 6 LLM providers with auto-fallback
+    orchestrator/           # Dependency-aware step runner
+    structured-output.ts    # Typed JSON sidecars
+    url-auditor.ts          # Live URL SEO audit
+    validator.ts            # Config/environment validator
+    degradation.ts          # Integration degradation (graceful skips)
   pipeline/
     steps.ts                # All pipeline steps
     technical.ts            # Technical audit step

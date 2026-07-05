@@ -110,6 +110,17 @@ npx seoflow init
 11. **FactCheck**: Price/claim verification via Google Search grounding
 12. **Report**: Export audit report (PDF format)
 
+## MCP Servers
+
+SeoFlow works with MCP servers for live SEO data. These are configured in `opencode.json`:
+
+| MCP | Endpoint | Auth | Use |
+|-----|----------|------|-----|
+| SeoCrawl | `https://mcp.seocrawl.ai` | OAuth | GSC, GA4, site audit, AI tracker, tasks |
+| Ubersuggest | `https://ubersuggest-mcp.neilpatelapi.com/mcp` | OAuth | Keyword research, SERP data |
+
+Both use OAuth — sign in on first tool call, no API keys needed.
+
 ## Extensions
 
 SeoFlow supports optional extensions for additional integrations:

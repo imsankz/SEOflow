@@ -37,6 +37,9 @@ import { getLearningSummary, predictPriority, recordContentSnapshot } from './li
 import { generateBatch, ContentGap } from './lib/generator';
 import { scanCandidates, publishBatch } from './lib/publisher';
 import { printValidation } from './lib/validator';
+import { readBrainSummary, appendLog, readBrain, readLog } from './lib/brain';
+import { isUrl } from './lib/url-auditor';
+import { logIntegrationStatus } from './lib/degradation';
 import type { NeuronData } from './lib/types';
 
 // ─── Args ────────────────────────────────────────────────────────────────────
@@ -235,6 +238,32 @@ async function cmdStatus(): Promise<void> {
     for (const l of lessons) console.log(l);
   }
 
+  // Brain / Vault compact summary
+  try {
+    const brain = readBrain();
+    if (brain.lastRun) {
+      console.log(`\n🧠 Last run: ${brain.lastRun.timestamp} — ${brain.lastRun.postsProcessed} posts, ${brain.lastRun.totalChanges} changes, ${brain.lastRun.errors} errors`);
+    }
+    const entries = readLog(3);
+    if (entries.length > 0) {
+      console.log(`📋 Recent: ${entries.map(e => e.summary).join(', ')}`);
+    }
+    const { vaultSummary: getVault, suggestNextActions: getActions } = await import('./lib/brain/brain-manager');
+    const vText = getVault();
+    if (vText && !vText.startsWith('No vault')) {
+      const audits = vText.match(/- audits: (\d+) notes/);
+      const findings = vText.match(/- findings: (\d+) notes/);
+      const parts: string[] = [];
+      if (audits) parts.push(`${audits[1]} audits`);
+      if (findings) parts.push(`${findings[1]} findings`);
+      if (parts.length > 0) console.log(`📁 Vault: ${parts.join(', ')}`);
+    }
+    const actions = getActions();
+    if (actions.length > 0) {
+      console.log(`📌 Next: ${actions.slice(0, 2).join(' | ')}`);
+    }
+  } catch {}
+
   console.log('');
 }
 
@@ -357,6 +386,53 @@ export async function runPipeline(): Promise<void> {
 
   if (VERB === 'status') { await cmdStatus(); return; }
   if (VERB === 'learn') { cmdLearn(); return; }
+  if (VERB === 'brain') {
+    const brainSummary = readBrainSummary();
+    console.log(brainSummary);
+    // Also show vault summary
+    try {
+      const { vaultSummary } = await import('./lib/brain/brain-manager');
+      console.log('\n' + vaultSummary());
+      const { suggestNextActions } = await import('./lib/brain/brain-manager');
+      const actions = suggestNextActions();
+      if (actions.length > 0) {
+        console.log('\n**Suggested next actions:**');
+        for (const a of actions) console.log(`  ☐ ${a}`);
+      }
+    } catch {}
+    return;
+  }
+  if (VERB === 'vault') {
+    try {
+      const { vaultSummary } = await import('./lib/brain/brain-manager');
+      console.log(vaultSummary());
+      const { suggestNextActions } = await import('./lib/brain/brain-manager');
+      const actions = suggestNextActions();
+      if (actions.length > 0) {
+        console.log('\n**Suggested next actions:**');
+        for (const a of actions) console.log(`  ☐ ${a}`);
+      }
+    } catch (e) {
+      console.log('Vault not available:', e instanceof Error ? e.message : 'error');
+    }
+    return;
+  }
+
+  // Orchestrator-aware audit
+  if (VERB === 'orchestrate' || VERB === 'run') {
+    const { runPipeline: orchestrate, printPipelineStatus } = await import('./lib/orchestrator');
+    const { registerAllStepRunners } = await import('./pipeline/steps');
+    registerAllStepRunners();
+    const slugs = rawArgs.slice(1).filter(a => !a.startsWith('--'));
+    const result = await orchestrate(slugs, DRY_RUN);
+    console.log(`\n✅ Pipeline complete: ${result.succeeded} succeeded, ${result.failed} failed, ${result.skipped} skipped, ${result.totalChanges} changes`);
+    if (result.errors.length > 0) {
+      console.log(`\n❌ Errors:`);
+      for (const e of result.errors) console.log(`   • ${e}`);
+    }
+    return;
+  }
+
   if (VERB === 'learning') {
     const sub = rawArgs[1];
     if (sub === 'export') { cmdLearningExport(rawArgs[2]); return; }
@@ -367,6 +443,46 @@ export async function runPipeline(): Promise<void> {
 
   if (VERB === 'cluster') { await cmdCluster(); return; }
   if (VERB === 'brief') { await cmdBrief(); return; }
+
+  // URL audit mode — single URL, skip file-based pipeline
+  if (VERB === 'audit' && VERB_ARG && isUrl(VERB_ARG)) {
+    const { auditUrl } = await import('./lib/url-auditor');
+    const result = await auditUrl(VERB_ARG);
+
+    console.log(`\n${'═'.repeat(60)}`);
+    console.log(`📋 URL AUDIT REPORT: ${result.url}`);
+    console.log(`${'═'.repeat(60)}`);
+    console.log(`   HTTP status: ${result.signals.status}`);
+    console.log(`   Title: ${result.signals.title || '(missing)'}`);
+    if (result.performance) {
+      console.log(`   PSI Score: ${result.performance.score}/100`);
+      console.log(`   LCP: ${result.performance.lcp.toFixed(1)}s | CLS: ${result.performance.cls.toFixed(2)} | INP: ${result.performance.inp}ms`);
+    }
+    console.log(`   H1s: ${result.signals.h1.length} | H2s: ${result.signals.h2.length}`);
+    console.log(`   Schema: ${result.signals.hasSchema ? '✅' : '❌'} | Canonical: ${result.signals.canonical ? '✅' : '❌'}`);
+    console.log(`   Internal links: ${result.signals.links.internal} | External: ${result.signals.links.external}`);
+
+    console.log(`\n📄 AI Report:\n`);
+    console.log(result.report);
+
+    // Write report to file
+    if (!DRY_RUN) {
+      const reportsDir = path.join(process.cwd(), '.seoflow', 'reports');
+      if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
+      const domain = result.url.replace(/https?:\/\//, '').replace(/[\/:]/g, '_');
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const reportPath = path.join(reportsDir, `${timestamp}-${domain}.md`);
+      const header = `# SEO Audit: ${result.url}\n\n**Date:** ${new Date().toISOString().slice(0, 10)}\n**PSI Score:** ${result.performance?.score ?? 'N/A'}/100\n\n`;
+      let reportContent = header + result.report;
+      if (result.data) {
+        const { writeDataSidecar } = await import('./lib/structured-output');
+        writeDataSidecar(reportPath, result.data as unknown as Record<string, unknown>);
+      }
+      fs.writeFileSync(reportPath, reportContent);
+      console.log(`\n📝 Report saved: ${reportPath}`);
+    }
+    return;
+  }
 
   const cfg = loadConfig();
 
@@ -413,7 +529,8 @@ export async function runPipeline(): Promise<void> {
 
   if (hasNeuronKey()) console.log(`📡 NeuronWriter: ${getNeuronProjectId()}`);
   else console.log('⚠️  NEURONWRITER_API_KEY not set');
-  logAiStatus();
+  await logAiStatus();
+  logIntegrationStatus();
 
   // ── Generate mode ──────────────────────────────────────────────────────
   if (MODE === 'generate') {
@@ -509,10 +626,25 @@ export async function runPipeline(): Promise<void> {
   };
 
   const results: ProcessResult[] = [];
+  const pipelineStartTime = Date.now();
   const { processPost } = await import('./pipeline/steps');
   for (const c of candidates) {
     const r = await processPost(c.slug, c.filePath, gscPages, auditLog, { mode: MODE, skipAlreadyDone: !SLUG_FILTER && MODE === 'all', dryRun: DRY_RUN });
     results.push(r);
+
+    // Record to brain vault
+    if (!DRY_RUN) {
+      try {
+        const { initBrain, recordAuditRun, recordFinding } = await import('./lib/brain/brain-manager');
+        initBrain();
+        const fm = (() => { try { const raw = fs.readFileSync(c.filePath, 'utf8'); const match = raw.match(/^---\n([\s\S]*?)\n---/); return {}; } catch { return {}; } })();
+        const score = r.changes > 0 ? 70 : 50;
+        recordAuditRun(c.slug, `Pipeline audit: ${r.changes} changes`, score, r.changes);
+        if (r.changes > 0) {
+          recordFinding(c.slug, 'pipeline', `${r.changes} changes applied (${MODE} mode)`, r.changes > 5 ? 'high' : 'medium', 'SeoFlow pipeline', 7);
+        }
+      } catch {}
+    }
 
     if (!DRY_RUN && r.after) {
       try {
@@ -576,6 +708,16 @@ export async function runPipeline(): Promise<void> {
 
   console.log();
   if (!DRY_RUN) console.log(`✅ Log: ${auditLogPath}`);
+
+  // Write to brain
+  if (!DRY_RUN) {
+    const pipelineDuration = Date.now() - pipelineStartTime;
+    appendLog({
+      type: 'run',
+      summary: `Pipeline completed: ${results.length} posts, ${total} changes, ${improved} improved`,
+      detail: `Duration: ${(pipelineDuration / 1000).toFixed(0)}s, AI calls: ${aiCalls}`,
+    });
+  }
 }
 
 runPipeline().catch((e: Error) => { console.error('Fatal:', e?.message || e, e?.stack?.split('\n').slice(0,3).join('\n') || ''); process.exit(1); });

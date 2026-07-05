@@ -80,14 +80,29 @@ export class PythonManager {
   }
 
   /**
+   * Resolve a Python script path by checking multiple locations.
+   * Order: python/ → scripts/ → .seoflow/scripts/
+   */
+  private static resolveScriptPath(scriptName: string, workingDir: string): string | null {
+    const candidates = [
+      path.resolve(workingDir, 'python', `${scriptName}.py`),
+      path.resolve(workingDir, 'scripts', `${scriptName}.py`),
+      path.resolve(workingDir, '.seoflow', 'scripts', `${scriptName}.py`),
+    ];
+    for (const cp of candidates) {
+      if (fs.existsSync(cp)) return cp;
+    }
+    return candidates[0]; // return the first candidate for the error message
+  }
+
+  /**
    * Run a Python script with optional arguments
    */
   static run(options: PythonOptions): PythonResult {
     const { scriptName, args = [], timeout = 60000, workingDir = process.cwd() } = options;
 
-    const scriptPath = path.resolve(workingDir, 'python', `${scriptName}.py`);
-
-    if (!fs.existsSync(scriptPath)) {
+    const scriptPath = this.resolveScriptPath(scriptName, workingDir);
+    if (!scriptPath || !fs.existsSync(scriptPath)) {
       return {
         stdout: '',
         stderr: `Script not found: ${scriptPath}`,
@@ -128,9 +143,8 @@ export class PythonManager {
   static async runAsync(options: PythonOptions): Promise<PythonResult> {
     const { scriptName, args = [], timeout = 60000, workingDir = process.cwd() } = options;
 
-    const scriptPath = path.resolve(workingDir, 'python', `${scriptName}.py`);
-
-    if (!fs.existsSync(scriptPath)) {
+    const scriptPath = this.resolveScriptPath(scriptName, workingDir);
+    if (!scriptPath || !fs.existsSync(scriptPath)) {
       return Promise.resolve({
         stdout: '',
         stderr: `Script not found: ${scriptPath}`,
