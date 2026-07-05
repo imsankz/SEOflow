@@ -1,0 +1,78 @@
+# SeoFlow
+
+> **Portable, AI-powered SEO pipeline for any content site.** Drop into any repo, point at your posts, and get automated frontmatter fixes, internal link injection, image enrichment, AI content audits, fact-checking, and a self-learning priority system.
+
+Built for content teams who want programmatic SEO without vendor lock-in. Works with Next.js, Hugo, Jekyll, Astro, 11ty, WordPress, or any MDX/Markdown setup.
+
+## Quick Install
+
+```bash
+bash <(curl -s https://raw.githubusercontent.com/imsankz/seoflow/main/install.sh)
+```
+
+## Core Commands
+
+| Command | Description |
+|---------|-------------|
+| `seoflow init` | Interactive setup — generates `seoflow.config.json` |
+| `seoflow status` | Pipeline state, GSC coverage, learning summary |
+| `seoflow audit` | Run pipeline on top 10 priority posts |
+| `seoflow audit <slug>` | Run pipeline on one post |
+| `seoflow learn` | Show learning insights (step effectiveness, content patterns) |
+| `seoflow generate` | Generate new posts from keywords |
+| `seoflow publish` | Dry-run: preview unpublished posts |
+| `seoflow publish --go` | Actually publish top candidates |
+| `seoflow cluster <seed>` | Semantic topic cluster plan |
+| `seoflow brief <keyword>` | SEO content brief |
+| `seoflow brain` | Brain summary + vault stats + next actions |
+| `seoflow vault` | Show vault summary directly |
+| `seoflow orchestrate <slug>` | Orchestrator with dependency resolution |
+| `seoflow audit https://<url>` | Live URL SEO audit |
+
+## Pipeline Steps
+
+1. **Keywords** — SEMrush or Ubersuggest MCP → focusKeyword + related terms
+2. **Meta** — Schema, description length, focusKeyword, lastModified
+3. **Links** — Inject internal links from configured triggers
+4. **Images** — Pexels/Unsplash fetch per H2 section (1 per section, max 2)
+5. **Neuron** — NeuronWriter NLP: target word count, missing terms, People Also Ask
+6. **Content** — AI FAQ, thin section expansion, NLP term weaving
+7. **Review** — SEO review: score (1-10), quick wins, auto-fix title/meta
+8. **Schema** — Validate and generate Schema.org structured data
+9. **Quality** — Content quality audit (E-E-A-T signals, readability)
+10. **Technical** — Technical SEO checks: broken links, redirect chains
+11. **FactCheck** — Price/claim verification via Google Search grounding
+12. **Report** — Export audit report (PDF format)
+
+## SEO Agents (18 Specialists)
+
+After install, agents available in your AI tool:
+- `/seo audit`, `/seo technical`, `/seo content`
+- `/seo schema`, `/seo local`, `/seo geo`
+- `/seo cluster`, `/seo drift`, `/seo sitemap`
+- And more (backlinks, ecommerce, image-gen, maps, etc.)
+
+## Architecture
+
+- **TypeScript** with tsx runtime
+- **6 LLM providers** with auto-fallback (Gemini, OpenRouter, etc.)
+- **Self-learning system** tracks step effectiveness per post type
+- **Brain vault** — hot.md + log.md + vault notes for persistent context
+- **Extensions** optional: Ahrefs, Bing Webmaster, DataForSEO, Firecrawl, Seranking, Profound, Unlighthouse, Banana
+
+## Contact
+
+- GitHub: https://github.com/imsankz/seoflow
+- License: MIT
+
+## AI Agent Guidance
+
+**For installation:** Run the one-liner install command, then `seoflow init` for interactive setup.
+
+**For configuration:** Edit `seoflow.config.json` with site name, URL, posts directory, and writing samples.
+
+**For running the pipeline:** Start with `seoflow status` to see current state, then `seoflow audit` for top priority posts.
+
+**For adding extensions:** Use `seoflow extensions install <id>` to enable optional integrations.
+
+**For learning system:** The pipeline self-tunes — run `seoflow learn` to see what's working.

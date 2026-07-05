@@ -1,0 +1,367 @@
+# SeoFlow — Full Content for AI Agents
+
+> AI-optimized reference for the complete SeoFlow project — architecture, modules, agents, pipeline steps, and developer guide.
+
+---
+
+## Overview
+
+SeoFlow is a portable, AI-powered SEO pipeline that lives in your repo (not a SaaS dashboard). It automates content audits, keyword research, internal linking, image enrichment, AI content improvements, technical SEO checks, and publishing — all from the command line.
+
+**GitHub:** https://github.com/imsankz/seoflow
+**License:** MIT
+**Runtime:** Node.js 18+, TypeScript (tsx)
+
+---
+
+## Installation
+
+### One-liner (recommended)
+```bash
+bash <(curl -s https://raw.githubusercontent.com/imsankz/seoflow/main/install.sh)
+```
+Creates `seoflow.config.json`, adds npm scripts, configures `.gitignore`.
+
+### Manual
+```bash
+git clone https://github.com/imsankz/seoflow.git .seoflow
+cd .seoflow
+npm install
+npm run seoflow:init
+```
+
+---
+
+## Configuration
+
+SeoFlow uses `seoflow.config.json` in the target repo. Generate with `seoflow init`.
+
+### Required Fields
+| Field | Description |
+|-------|-------------|
+| `siteName` | Your site name (e.g., "My Travel Blog") |
+| `siteUrl` | Your site URL (e.g., "https://example.com") |
+| `author` | Author name |
+| `authorLocation` | Author location |
+| `postsDir` | Directory containing blog posts |
+
+### Optional Fields
+| Field | Description |
+|-------|-------------|
+| `writingSample` | Single voice sample for AI generation |
+| `writingSamples` | Per-content-type voice samples (guide, review, etc.) |
+| `contentFormat` | "mdx", "markdown", or "wordpress" |
+| `imageSearchFallback` | Default image search term |
+| `contentDomain` | e.g., "travel blog", "SaaS product" |
+| `aiLimits` | Cost guardrails for bulk runs |
+
+### API Keys (`.env.local`)
+SeoFlow reads from `.env.local` for optional integrations (GSC, SEMrush, NeuronWriter, Pexels, etc.).
+
+---
+
+## CLI Commands
+
+### Pipeline Commands
+| Command | Description |
+|---------|-------------|
+| `seoflow init` | Interactive setup — generates config |
+| `seoflow status` | Pipeline state, GSC coverage, learning summary |
+| `seoflow audit` | Run pipeline on top 10 priority posts |
+| `seoflow audit <slug>` | Run pipeline on one post |
+| `seoflow audit https://<url>` | Live URL SEO audit |
+| `seoflow orchestrate <slug>` | Orchestrator pipeline with dependency resolution |
+| `seoflow run <slug>` | Alias for orchestrate |
+
+### Learning & Brain
+| Command | Description |
+|---------|-------------|
+| `seoflow learn` | Learning insights (step effectiveness, patterns) |
+| `seoflow learning export [file]` | Export learning bundle |
+| `seoflow learning import <file>` | Import learning bundle |
+| `seoflow brain` | Brain summary + vault stats |
+| `seoflow vault` | Vault summary directly |
+
+### Content Generation
+| Command | Description |
+|---------|-------------|
+| `seoflow generate` | Generate new posts from keywords |
+| `seoflow publish` | Dry-run unpublished posts |
+| `seoflow publish --go` | Publish top candidates |
+| `seoflow cluster <seed>` | Semantic topic cluster plan |
+| `seoflow brief <keyword>` | SEO content brief |
+
+### Extensions
+| Command | Description |
+|---------|-------------|
+| `seoflow extensions` | List optional extensions |
+| `seoflow extensions install <id>` | Install an extension |
+| `seoflow extensions status` | Show installed state |
+
+### Global Flags
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Preview without writing |
+| `--limit <n>` | Max posts to process (default: 10) |
+| `--slug <slug>` | Target one specific post |
+| `--reset-slug` | Re-audit a completed post |
+| `--mode <step>` | Run only one step: meta\|links\|images\|keywords\|etc. |
+
+---
+
+## Pipeline Steps (Detailed)
+
+### 1. Keywords
+- Source: SEMrush API (if key configured) or Ubersuggest MCP (OAuth)
+- Output: focusKeyword + related terms + SERP analysis
+- Cached in `keywordCachePath`
+
+### 2. Meta
+- Validates: schema markup, description length, focusKeyword usage
+- Fixes: missing lastModified, keyword-optimized titles
+- Output: structured metadata sidecar
+
+### 3. Links
+- Scans post content for trigger keywords
+- Injects contextual internal links from configured trigger map
+- Respects `linkDensity` limits per post
+
+### 4. Images
+- Fetches Pexels/Unsplash images per H2 section
+- Default: 1 image per section, max 2 per post
+- Adds alt text, captions, lazy loading
+
+### 5. Neuron (NLP)
+- NeuronWriter API: target word count, missing terms, People Also Ask
+- Compares against top 10 SERP competitors
+
+### 6. Content (AI)
+- LLM (Gemini/OpenRouter): FAQ generation, thin section expansion
+- Weaves NLP missing terms naturally into existing content
+- Uses `writingSample` for voice consistency
+
+### 7. Review
+- SEO score 1-10 with breakdown
+- Quick wins list with auto-fix for title/meta
+- Human-readable summary
+
+### 8. Schema
+- Validates existing Schema.org structured data
+- Generates missing schema (Article, FAQ, HowTo, Product, etc.)
+- JSON-LD format
+
+### 9. Quality
+- E-E-A-T signal detection (author bylines, cited sources, dates)
+- Readability score (Flesch-Kincaid)
+- Content depth analysis
+
+### 10. Technical
+- Broken link detection (internal + external)
+- Redirect chain analysis
+- Performance hints (image optimization, Core Web Vitals)
+
+### 11. FactCheck
+- Price/claim verification via Google Search grounding API
+- Flags unsupported claims for human review
+
+### 12. Report
+- Exports full audit as PDF
+- Includes: scores, findings, fix recommendations
+
+---
+
+## Architecture
+
+### Module Structure
+
+```
+.seoflow/
+├── run.ts                        # Pipeline CLI entry point
+├── bin/                          # CLI entry (dist)
+├── agents/                       # 18 SEO specialist agents
+│   ├── seo-backlinks.md
+│   ├── seo-cluster.md
+│   ├── seo-content.md
+│   ├── seo-dataforseo.md
+│   ├── seo-drift.md
+│   ├── seo-ecommerce.md
+│   ├── seo-flow.md
+│   ├── seo-geo.md
+│   ├── seo-google.md
+│   ├── seo-image-gen.md
+│   ├── seo-local.md
+│   ├── seo-maps.md
+│   ├── seo-performance.md
+│   ├── seo-schema.md
+│   ├── seo-sitemap.md
+│   ├── seo-sxo.md
+│   ├── seo-technical.md
+│   └── seo-visual.md
+├── lib/                          # Core library
+│   ├── config.ts                 # Site config loader
+│   ├── types.ts                  # Shared interfaces
+│   ├── env-loader.ts             # .env.local parser
+│   ├── mdx-parser.ts             # MDX/Markdown parsing
+│   ├── gsc-client.ts             # GSC API client
+│   ├── gsc-parser.ts             # GSC CSV + live API
+│   ├── gemini-client.ts          # Gemini API client
+│   ├── openrouter-client.ts      # OpenRouter client
+│   ├── ai-provider.ts            # Unified AI (6 providers with auto-fallback)
+│   ├── pexels-client.ts          # Image search
+│   ├── neuronwriter.ts           # NeuronWriter API
+│   ├── ubersuggest-client.ts     # Keyword research (cached MCP)
+│   ├── ahrefs-client.ts          # Ahrefs backlink API
+│   ├── semrush-client.ts         # SEMrush API client
+│   ├── learning.ts               # Self-learning system
+│   ├── audit-log.ts              # Audit logging
+│   ├── schema.ts                 # Schema.org generation + validation
+│   ├── cluster.ts                # Semantic topic clustering
+│   ├── content-brief.ts          # SEO content brief generator
+│   ├── generator.ts              # Content generation
+│   ├── publisher.ts              # Publishing workflow
+│   ├── url-auditor.ts            # Live URL SEO audit (23K lines)
+│   ├── validator.ts              # Config/env validator
+│   ├── degradation.ts            # Graceful integration degradation
+│   ├── structured-output.ts      # Typed JSON sidecars
+│   ├── extensions.ts             # Extension management
+│   ├── installer.ts              # Install/uninstall logic
+│   ├── init.ts                   # Interactive init
+│   ├── backlinks/                # Backlink analysis
+│   ├── brain/                    # Brain vault system
+│   ├── content-quality/          # E-E-A-T + humanizer
+│   ├── drift/                    # SEO drift monitoring
+│   ├── orchestrator/             # Dependency-aware step runner
+│   ├── providers/                # 6 LLM providers with fallback
+│   ├── python/                   # Python script wrappers
+│   ├── reports/                  # PDF report generation
+│   └── technical/                # PageSpeed + CrUX
+├── pipeline/                     # Pipeline orchestration
+│   ├── steps.ts                  # All pipeline steps
+│   ├── technical.ts              # Technical audit step
+│   ├── content-quality.ts        # Content quality step
+│   └── report-export.ts          # Report export step
+├── skills/                       # Claude Code skill definitions
+├── extensions/                   # Optional integrations
+│   ├── ahrefs/                   # Backlink analysis
+│   ├── banana/                   # Image generation
+│   ├── bing-webmaster/           # Bing search data
+│   ├── dataforseo/               # Keyword + SERP data
+│   ├── firecrawl/                # Crawling + scraping
+│   ├── profound/                 # Content analysis
+│   ├── seranking/                # Rank tracking
+│   └── unlighthouse/             # Lighthouse audits
+├── hooks/                        # PostToolUse validation hooks
+├── docs/                         # Documentation
+│   ├── getting-started.md
+│   └── INTEGRATION_PLAN.md
+├── data/                         # Generated data (gitignored)
+│   └── google-updates.json
+├── install.sh                    # Unix installer
+├── install.ps1                   # Windows installer
+├── uninstall.sh                  # Unix uninstaller
+├── uninstall.ps1                 # Windows uninstaller
+└── build.mjs                     # Build script
+```
+
+### AI Provider System
+
+SeoFlow has a unified AI provider with 6 providers and auto-fallback:
+1. **Gemini** (Google AI Studio) — primary, used for most pipeline AI operations
+2. **OpenRouter** — fallback, with configurable models
+3. Additional providers in `lib/providers/`
+
+Each call has configurable budget limits (`aiLimits`) to control costs in bulk runs.
+
+### Brain Vault System
+
+Persistent context store across pipeline runs:
+- `hot.md` — Current session state, overwritten each run
+- `log.md` — Append-only log of all pipeline actions
+- `vault notes` — Structured markdown notes with `brain_schema: marketing-brain.v1`
+
+### Self-Learning System
+
+Tracks per-step effectiveness across runs:
+- Which steps produce the most value per content type
+- Content pattern recommendations
+- Priority reordering based on historical ROI
+- Learning export/import for sharing across machines
+
+### MCP Servers
+
+SeoFlow integrates with MCP servers for live SEO data:
+- **SeoCrawl** — GSC, GA4, site audit, AI tracker, tasks (OAuth)
+- **Ubersuggest** — Keyword research, SERP data (OAuth)
+
+---
+
+## 18 SEO Agents
+
+| Agent | Purpose |
+|-------|---------|
+| **seo-backlinks** | Backlink profile analysis (referring domains, anchor text) |
+| **seo-cluster** | SERP-based semantic topic clustering for content architecture |
+| **seo-content** | Content quality and E-E-A-T analysis |
+| **seo-dataforseo** | Live SEO data via DataForSEO MCP |
+| **seo-drift** | SEO drift monitoring (capture baselines) |
+| **seo-ecommerce** | E-commerce SEO (Google Shopping, Amazon) |
+| **seo-flow** | FLOW framework integration |
+| **seo-geo** | Optimize for AI Overviews (SGE, ChatGPT, Gemini) |
+| **seo-google** | Google SEO APIs (Search Console, Analytics) |
+| **seo-image-gen** | AI image generation for SEO assets |
+| **seo-local** | Local SEO (Google Business Profile) |
+| **seo-maps** | Maps intelligence (geo-grid rank tracking) |
+| **seo-performance** | Core Web Vitals and performance |
+| **seo-schema** | Schema.org structured data |
+| **seo-sitemap** | XML sitemap analysis and generation |
+| **seo-sxo** | Search Experience Optimization |
+| **seo-technical** | Technical SEO across 9 categories |
+| **seo-visual** | Visual content SEO |
+
+---
+
+## Adding a New Site
+
+1. `bash <(curl -s https://raw.githubusercontent.com/imsankz/seoflow/main/install.sh)`
+2. Edit `seoflow.config.json` with site details
+3. Add API keys to `.env.local`
+4. `npm run seoflow:dry` — preview before running
+5. `npm run seoflow audit` — run full pipeline
+
+---
+
+## Development
+
+```bash
+# Clone the repo
+git clone https://github.com/imsankz/seoflow.git
+cd seoflow
+npm install
+
+# Build
+npm run build
+
+# Test
+npm run seoflow:test          # All tests
+npm run seoflow:test:unit     # Unit tests only
+
+# Run locally
+npm run seoflow:init
+npm run seoflow:status
+```
+
+---
+
+## Global Flags Reference
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--dry-run` | bool | false | Preview changes without writing |
+| `--limit` | number | 10 | Max posts to process |
+| `--slug` | string | — | Target one specific post |
+| `--reset-slug` | bool | false | Re-audit a completed post |
+| `--mode` | string | — | Run only one step |
+| `--country` | string | — | Country filter |
+| `--priority` | number | — | Priority filter (1-3) |
+| `--type` | string | — | Content type filter |
+| `--go` | bool | false | Actually execute (publish) |
