@@ -50,8 +50,8 @@
     "seoflow:vault": "npx tsx run.ts vault",
     "install:repo": "bash ./install.sh",
     "uninstall:repo": "bash ./uninstall.sh",
-    "test": "npx tsx --test tests/**/*.test.ts",
-    "test:unit": "npx tsx --test tests/**/*.test.ts --test-name-pattern=unit",
+    "test": "npx tsx --test tests/*.test.ts",
+    "test:unit": "npx tsx --test tests/*.test.ts",
     "test:integration": "npx tsx --test tests/integration.test.ts"
   },
   "engines": {
