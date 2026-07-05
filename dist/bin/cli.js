@@ -15,27 +15,143 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// lib/env-loader.ts
-var env_loader_exports = {};
-__export(env_loader_exports, {
-  loadEnv: () => loadEnv
+// lib/init.ts
+var init_exports = {};
+__export(init_exports, {
+  interactiveInit: () => interactiveInit
 });
 import fs from "fs";
 import path from "path";
+import readline from "readline";
+function ask(query, def = "") {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    const prompt = def ? `  ${query} (${def}): ` : `  ${query}: `;
+    rl.question(prompt, (ans) => {
+      rl.close();
+      resolve(ans.trim() || def);
+    });
+  });
+}
+async function interactiveInit() {
+  const cwd = process.cwd();
+  const configPath = path.join(cwd, "seoflow.config.json");
+  if (fs.existsSync(configPath)) {
+    console.log("\n  \u26A0\uFE0F  seoflow.config.json already exists. Delete it first to reconfigure.\n");
+    return;
+  }
+  console.log("\n  \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557");
+  console.log("  \u2551       SeoFlow \u2014 Project Setup             \u2551");
+  console.log("  \u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D");
+  console.log("  Press Enter to accept defaults in (parentheses)\n");
+  const siteName = await ask("Site name", "My Site");
+  const siteUrl = await ask("Site URL (no https://)", "example.com");
+  const author = await ask("Author name", "Author");
+  const authorLoc = await ask("Author location", "Your City");
+  const postsDir = await ask("Posts directory", "src/content/posts");
+  const branch = await ask("Git branch for publishing", "main");
+  const contentDomain = await ask("Content domain (e.g. travel, food, tech)", "blog");
+  const contentFormat = await ask("Content format (mdx / markdown)", "mdx");
+  const config = {
+    siteName,
+    siteUrl,
+    author,
+    authorLocation: authorLoc,
+    writingSample: "",
+    postsDir,
+    gscPagesCsv: "gsc_data/Seiten.csv",
+    gscQueriesCsv: "gsc_data/Suchanfragen.csv",
+    auditLogPath: ".seoflow/data/audit-log.json",
+    keywordCachePath: ".seoflow/data/keyword-cache.json",
+    destinationPattern: "/destinations/{country}",
+    contentFormat: contentFormat === "markdown" ? "markdown" : "mdx",
+    contentDomain,
+    tools: [
+      { keywords: ["budget", "cost", "how much", "cheap", "per day", "price"], path: "/tools/budget-calculator", anchor: "budget calculator" },
+      { keywords: ["packing", "what to bring", "luggage", "essentials"], path: "/tools/packing-checklist", anchor: "packing checklist" }
+    ],
+    bookings: [],
+    generation: {
+      defaultSchema: "Article",
+      defaultCategory: contentDomain,
+      wordCountMin: 1500,
+      wordCountMax: 2500
+    },
+    publishing: {
+      gitEmail: "noreply@seoflow.dev",
+      gitName: `${siteName} Publisher`,
+      branch,
+      baseUrl: `https://${siteUrl}`,
+      majorCities: []
+    }
+  };
+  fs.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
+  console.log(`
+  \u2705 seoflow.config.json created`);
+  const dataDir = path.join(cwd, ".seoflow", "data");
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+    console.log("  \u2705 .seoflow/data/ created");
+  }
+  try {
+    const pkgPath = path.join(cwd, "package.json");
+    if (fs.existsSync(pkgPath)) {
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf8"));
+      pkg.scripts = {
+        ...pkg.scripts,
+        seoflow: "npx tsx .seoflow/run.ts",
+        "seoflow:dry": "npx tsx .seoflow/run.ts --dry-run",
+        "seoflow:audit": "npx tsx .seoflow/run.ts audit",
+        "seoflow:generate": "npx tsx .seoflow/run.ts generate",
+        "seoflow:publish": "npx tsx .seoflow/run.ts publish"
+      };
+      fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
+      console.log("  \u2705 npm scripts added to package.json");
+    }
+  } catch {
+  }
+  try {
+    const gitignorePath = path.join(cwd, ".gitignore");
+    if (fs.existsSync(gitignorePath)) {
+      const content = fs.readFileSync(gitignorePath, "utf8");
+      if (!content.includes(".seoflow/data/")) {
+        fs.appendFileSync(gitignorePath, "\n# SeoFlow generated data\n.seoflow/data/\n");
+        console.log("  \u2705 Added .seoflow/data/ to .gitignore");
+      }
+    }
+  } catch {
+  }
+  console.log("\n  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500");
+  console.log("  Next steps:");
+  console.log("  1. Add API keys to .env.local (GEMINI_API_KEY, etc.)");
+  console.log("  2. Edit seoflow.config.json to configure your tools and triggers");
+  console.log("  3. Run: npm run seoflow:dry");
+  console.log("  4. Run: npx seoflow audit");
+  console.log("");
+}
+var init_init = __esm({
+  "lib/init.ts"() {
+    "use strict";
+  }
+});
+
+// lib/env-loader.ts
+import fs2 from "fs";
+import path2 from "path";
 function findRoot() {
   let dir = process.cwd();
   for (let i = 0; i < 10; i++) {
-    if (fs.existsSync(path.join(dir, "seoflow.config.json"))) return dir;
-    if (fs.existsSync(path.join(dir, ".env.local"))) return dir;
-    const p = path.dirname(dir);
+    if (fs2.existsSync(path2.join(dir, "seoflow.config.json"))) return dir;
+    if (fs2.existsSync(path2.join(dir, ".env.local"))) return dir;
+    const p = path2.dirname(dir);
     if (p === dir) break;
     dir = p;
   }
   return process.cwd();
 }
 function loadEnv() {
-  if (!fs.existsSync(ENV_FILE)) return;
-  for (const line of fs.readFileSync(ENV_FILE, "utf8").split(/\r?\n/)) {
+  if (!fs2.existsSync(ENV_FILE)) return;
+  for (const line of fs2.readFileSync(ENV_FILE, "utf8").split(/\r?\n/)) {
     const l = line.trim();
     if (!l || l.startsWith("#")) continue;
     const eq = l.indexOf("=");
@@ -52,7 +168,7 @@ var init_env_loader = __esm({
   "lib/env-loader.ts"() {
     "use strict";
     ROOT = findRoot();
-    ENV_FILE = path.join(ROOT, ".env.local");
+    ENV_FILE = path2.join(ROOT, ".env.local");
   }
 });
 
@@ -347,13 +463,13 @@ __export(config_exports, {
   loadConfig: () => loadConfig,
   resetConfig: () => resetConfig
 });
-import fs2 from "fs";
-import path2 from "path";
+import fs3 from "fs";
+import path3 from "path";
 function findRoot2() {
   let dir = process.cwd();
   for (let i = 0; i < 10; i++) {
-    if (fs2.existsSync(path2.join(dir, CONFIG_FILE))) return dir;
-    const p = path2.dirname(dir);
+    if (fs3.existsSync(path3.join(dir, CONFIG_FILE))) return dir;
+    const p = path3.dirname(dir);
     if (p === dir) break;
     dir = p;
   }
@@ -362,20 +478,20 @@ function findRoot2() {
 function loadConfig() {
   if (_config) return _config;
   const root = findRoot2();
-  const p = path2.join(root, CONFIG_FILE);
-  if (!fs2.existsSync(p)) {
+  const p = path3.join(root, CONFIG_FILE);
+  if (!fs3.existsSync(p)) {
     throw new Error(`No ${CONFIG_FILE} found. Run \`npx seoflow init\` first.`);
   }
   let raw;
   try {
-    raw = JSON.parse(fs2.readFileSync(p, "utf8"));
+    raw = JSON.parse(fs3.readFileSync(p, "utf8"));
   } catch (e) {
     throw new Error(`Invalid JSON in ${CONFIG_FILE}: ${e instanceof Error ? e.message : e}`);
   }
   if (!raw || typeof raw !== "object") {
     throw new Error(`${CONFIG_FILE} must be a JSON object.`);
   }
-  const r = (s) => path2.resolve(root, s);
+  const r = (s) => path3.resolve(root, s);
   _config = {
     ...raw,
     postsDir: r(raw.postsDir),
@@ -647,7 +763,7 @@ var init_gsc_client = __esm({
 });
 
 // lib/gsc-parser.ts
-import fs3 from "fs";
+import fs4 from "fs";
 async function detectGscSource() {
   if (_sourceChecked) return _usingApi ? "api" : "csv";
   _usingApi = await isGscApiAvailable();
@@ -707,8 +823,8 @@ function parseGscPagesFromCsv() {
   const map = {};
   const cfg = loadConfig();
   const p = cfg.gscPagesCsv;
-  if (!fs3.existsSync(p)) return map;
-  const lines = fs3.readFileSync(p, "utf8").trim().split("\n");
+  if (!fs4.existsSync(p)) return map;
+  const lines = fs4.readFileSync(p, "utf8").trim().split("\n");
   if (lines.length < 2) return map;
   const cols = detectColumns(lines[0]);
   if (!cols) {
@@ -735,8 +851,8 @@ function parseGscPagesFromCsv() {
 function parseGscQueriesFromCsv() {
   const map = {};
   const p = loadConfig().gscQueriesCsv;
-  if (!fs3.existsSync(p)) return map;
-  const lines = fs3.readFileSync(p, "utf8").trim().split("\n");
+  if (!fs4.existsSync(p)) return map;
+  const lines = fs4.readFileSync(p, "utf8").trim().split("\n");
   if (lines.length < 2) return map;
   for (const line of lines.slice(1)) {
     const parts = line.split(",");
@@ -779,15 +895,15 @@ var init_gsc_parser = __esm({
 });
 
 // lib/audit-log.ts
-import fs4 from "fs";
-import path3 from "path";
+import fs5 from "fs";
+import path4 from "path";
 function loadAuditLog() {
   const p = getAuditLogPath();
-  if (!fs4.existsSync(p)) {
+  if (!fs5.existsSync(p)) {
     return { version: "1.0", last_run: null, posts: {} };
   }
   try {
-    const log = JSON.parse(fs4.readFileSync(p, "utf8"));
+    const log = JSON.parse(fs5.readFileSync(p, "utf8"));
     if (!log || typeof log !== "object" || Array.isArray(log)) {
       return { version: "1.0", last_run: null, posts: {} };
     }
@@ -802,8 +918,8 @@ function loadAuditLog() {
 function saveAuditLog(log, dryRun = false) {
   if (!dryRun) {
     const p = getAuditLogPath();
-    fs4.mkdirSync(path3.dirname(p), { recursive: true });
-    fs4.writeFileSync(p, JSON.stringify(log, null, 2));
+    fs5.mkdirSync(path4.dirname(p), { recursive: true });
+    fs5.writeFileSync(p, JSON.stringify(log, null, 2));
   }
 }
 function isAlreadyDone(log, slug) {
@@ -907,8 +1023,8 @@ var init_anthropic = __esm({
 });
 
 // lib/providers/claude-cli.ts
-import fs5 from "node:fs";
-import path4 from "node:path";
+import fs6 from "node:fs";
+import path5 from "node:path";
 async function spawnCapture(bin, args, opts) {
   const { spawn } = await import("node:child_process");
   return new Promise((resolve) => {
@@ -948,9 +1064,9 @@ var init_claude_cli = __esm({
         const installed = probe.exitCode === 0;
         let authed = false;
         if (installed) {
-          const authPath = path4.join(process.env.HOME ?? "", ".claude", "auth.json");
-          const authTomlPath = path4.join(process.env.HOME ?? "", ".claude", "auth.toml");
-          authed = fs5.existsSync(authPath) || fs5.existsSync(authTomlPath);
+          const authPath = path5.join(process.env.HOME ?? "", ".claude", "auth.json");
+          const authTomlPath = path5.join(process.env.HOME ?? "", ".claude", "auth.toml");
+          authed = fs6.existsSync(authPath) || fs6.existsSync(authTomlPath);
         }
         return {
           id: "claude-cli",
@@ -984,8 +1100,8 @@ ${input.messages.map((m) => `${m.role === "user" ? "USER" : "ASSISTANT"}: ${m.co
 });
 
 // lib/providers/codex-cli.ts
-import fs6 from "node:fs";
-import path5 from "node:path";
+import fs7 from "node:fs";
+import path6 from "node:path";
 async function spawnChild(bin, args, opts) {
   const { spawn } = await import("node:child_process");
   return new Promise((resolve) => {
@@ -1015,9 +1131,9 @@ var init_codex_cli = __esm({
       async availability() {
         const probe = await spawnChild(BIN2, ["--version"], { timeoutMs: 5e3 });
         const installed = probe.exitCode === 0;
-        const authPath = path5.join(process.env.HOME ?? "", ".codex", "auth.json");
-        const authTomlPath = path5.join(process.env.HOME ?? "", ".codex", "auth.toml");
-        const authed = installed && (fs6.existsSync(authPath) || fs6.existsSync(authTomlPath));
+        const authPath = path6.join(process.env.HOME ?? "", ".codex", "auth.json");
+        const authTomlPath = path6.join(process.env.HOME ?? "", ".codex", "auth.toml");
+        const authed = installed && (fs7.existsSync(authPath) || fs7.existsSync(authTomlPath));
         return {
           id: "codex-cli",
           name: "Codex (via codex CLI)",
@@ -1047,8 +1163,8 @@ ${input.messages.map((m) => `${m.role === "user" ? "" : "(assistant) "}${m.conte
 });
 
 // lib/providers/gemini-cli.ts
-import fs7 from "node:fs";
-import path6 from "node:path";
+import fs8 from "node:fs";
+import path7 from "node:path";
 async function spawnChild2(bin, args, opts) {
   const { spawn } = await import("node:child_process");
   return new Promise((resolve) => {
@@ -1079,11 +1195,11 @@ var init_gemini_cli = __esm({
         const probe = await spawnChild2(BIN3, ["--version"], { timeoutMs: 5e3 });
         const installed = probe.exitCode === 0;
         const credCandidates = [
-          path6.join(process.env.HOME ?? "", ".gemini", "oauth_creds.json"),
-          path6.join(process.env.HOME ?? "", ".gemini", "creds.json"),
-          path6.join(process.env.HOME ?? "", ".config", "gemini", "auth.json")
+          path7.join(process.env.HOME ?? "", ".gemini", "oauth_creds.json"),
+          path7.join(process.env.HOME ?? "", ".gemini", "creds.json"),
+          path7.join(process.env.HOME ?? "", ".config", "gemini", "auth.json")
         ];
-        const authed = installed && credCandidates.some((p) => fs7.existsSync(p));
+        const authed = installed && credCandidates.some((p) => fs8.existsSync(p));
         return {
           id: "gemini-cli",
           name: "Gemini (via gemini CLI)",
@@ -1588,22 +1704,22 @@ var init_neuronwriter = __esm({
 });
 
 // lib/learning.ts
-import fs8 from "fs";
-import path7 from "path";
+import fs9 from "fs";
+import path8 from "path";
 function getDataDir() {
-  const dir = path7.dirname(loadConfig().auditLogPath);
-  if (!fs8.existsSync(dir)) fs8.mkdirSync(dir, { recursive: true });
+  const dir = path8.dirname(loadConfig().auditLogPath);
+  if (!fs9.existsSync(dir)) fs9.mkdirSync(dir, { recursive: true });
   return dir;
 }
 function getLearningPath() {
-  return path7.join(getDataDir(), "learning.json");
+  return path8.join(getDataDir(), "learning.json");
 }
 function getGscBaselinesPath() {
-  return path7.join(getDataDir(), "gsc-baselines.json");
+  return path8.join(getDataDir(), "gsc-baselines.json");
 }
 function getRunLogDir() {
-  const dir = path7.join(getDataDir(), "run-log");
-  if (!fs8.existsSync(dir)) fs8.mkdirSync(dir, { recursive: true });
+  const dir = path8.join(getDataDir(), "run-log");
+  if (!fs9.existsSync(dir)) fs9.mkdirSync(dir, { recursive: true });
   return dir;
 }
 function loadDB() {
@@ -1616,9 +1732,9 @@ function loadDB() {
     categories: {}
   });
   const p = getLearningPath();
-  if (fs8.existsSync(p)) {
+  if (fs9.existsSync(p)) {
     try {
-      const parsed = JSON.parse(fs8.readFileSync(p, "utf8"));
+      const parsed = JSON.parse(fs9.readFileSync(p, "utf8"));
       return {
         ...fallback(),
         ...parsed && typeof parsed === "object" ? parsed : {},
@@ -1634,20 +1750,20 @@ function loadDB() {
 }
 function saveDB(db) {
   db.updatedAt = (/* @__PURE__ */ new Date()).toISOString();
-  fs8.writeFileSync(getLearningPath(), JSON.stringify(db, null, 2));
+  fs9.writeFileSync(getLearningPath(), JSON.stringify(db, null, 2));
 }
 function loadGscBaselines() {
   const p = getGscBaselinesPath();
-  if (fs8.existsSync(p)) {
+  if (fs9.existsSync(p)) {
     try {
-      return JSON.parse(fs8.readFileSync(p, "utf8"));
+      return JSON.parse(fs9.readFileSync(p, "utf8"));
     } catch {
     }
   }
   return {};
 }
 function saveGscBaselines(b) {
-  fs8.writeFileSync(getGscBaselinesPath(), JSON.stringify(b, null, 2));
+  fs9.writeFileSync(getGscBaselinesPath(), JSON.stringify(b, null, 2));
 }
 function recordContentSnapshot(slug, data) {
   const db = loadDB();
@@ -1846,7 +1962,7 @@ function getLearningSummary() {
 function logRun(record) {
   const log = { ...record, timestamp: (/* @__PURE__ */ new Date()).toISOString() };
   const dir = getRunLogDir();
-  fs8.appendFileSync(path7.join(dir, `run-${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.jsonl`), JSON.stringify(log) + "\n");
+  fs9.appendFileSync(path8.join(dir, `run-${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.jsonl`), JSON.stringify(log) + "\n");
 }
 var init_learning = __esm({
   "lib/learning.ts"() {
@@ -1856,14 +1972,8 @@ var init_learning = __esm({
 });
 
 // lib/generator.ts
-var generator_exports = {};
-__export(generator_exports, {
-  generateBatch: () => generateBatch,
-  generatePost: () => generatePost,
-  generateSlug: () => generateSlug
-});
-import fs9 from "fs";
-import path8 from "path";
+import fs10 from "fs";
+import path9 from "path";
 async function generatePost(gap) {
   const cfg = loadConfig();
   const ai = getAiContext();
@@ -1872,7 +1982,7 @@ async function generatePost(gap) {
   const typeConfig = contentTypes[gap.type] || contentTypes["article"] || { schema: "Article", instructions: "Write an informative article." };
   const slug = gap.slug || generateSlug(gap.keyword, gap.destination);
   const postsDir = getPostsDir();
-  if (fs9.existsSync(path8.join(postsDir, `${slug}.mdx`))) {
+  if (fs10.existsSync(path9.join(postsDir, `${slug}.mdx`))) {
     console.log(`     \u23ED\uFE0F  "${slug}" already exists, skipping`);
     return null;
   }
@@ -1947,8 +2057,8 @@ description: "A practical guide to ${gap.keyword.toLowerCase()} in ${gap.destina
 
 ${content}`;
   }
-  const filePath = path8.join(postsDir, `${slug}.mdx`);
-  fs9.writeFileSync(filePath, content, "utf8");
+  const filePath = path9.join(postsDir, `${slug}.mdx`);
+  fs10.writeFileSync(filePath, content, "utf8");
   console.log(`     \u2705 Generated: ${slug}.mdx`);
   return { slug, filePath, content, frontmatter: {} };
 }
@@ -2116,13 +2226,8 @@ var init_mdx_parser = __esm({
 });
 
 // lib/publisher.ts
-var publisher_exports = {};
-__export(publisher_exports, {
-  publishBatch: () => publishBatch,
-  scanCandidates: () => scanCandidates
-});
-import fs10 from "fs";
-import path9 from "path";
+import fs11 from "fs";
+import path10 from "path";
 import { execFileSync } from "child_process";
 function scorePriority2(slug, majorCities, cfg) {
   const s = slug.toLowerCase();
@@ -2151,11 +2256,11 @@ function scorePriority2(slug, majorCities, cfg) {
 function scanCandidates(options) {
   const cfg = loadConfig();
   const postsDir = getPostsDir();
-  const files = fs10.readdirSync(postsDir).filter((f) => f.endsWith(".mdx"));
+  const files = fs11.readdirSync(postsDir).filter((f) => f.endsWith(".mdx"));
   const majorCities = cfg.publishing?.majorCities || [];
   let candidates = [];
   for (const file of files) {
-    const raw = fs10.readFileSync(path9.join(postsDir, file), "utf8");
+    const raw = fs11.readFileSync(path10.join(postsDir, file), "utf8");
     const { frontmatter } = parseMdx(raw);
     if (frontmatter.published === true) continue;
     const slug = file.replace(".mdx", "");
@@ -2173,7 +2278,7 @@ function scanCandidates(options) {
     const priority = scorePriority2(slug, majorCities, cfg);
     candidates.push({
       slug,
-      filePath: path9.join(postsDir, file),
+      filePath: path10.join(postsDir, file),
       title: frontmatter.title || slug,
       priority
     });
@@ -2190,7 +2295,7 @@ function publishBatch(candidates, dryRun = false) {
   const publishedCandidates = [];
   for (const c of candidates) {
     try {
-      const raw = fs10.readFileSync(c.filePath, "utf8");
+      const raw = fs11.readFileSync(c.filePath, "utf8");
       const { frontmatter, content } = parseMdx(raw);
       if (frontmatter.published === true) {
         console.log(`     \u23ED\uFE0F  "${c.slug}" already published`);
@@ -2201,7 +2306,7 @@ function publishBatch(candidates, dryRun = false) {
       if (!frontmatter.date) frontmatter.date = today;
       const newRaw = buildFrontmatterBlock(frontmatter) + content;
       if (!dryRun) {
-        fs10.writeFileSync(c.filePath, newRaw, "utf8");
+        fs11.writeFileSync(c.filePath, newRaw, "utf8");
         console.log(`     \u2705 Published: ${c.slug}`);
       } else {
         console.log(`     [DRY RUN] Would publish: ${c.slug}`);
@@ -2281,13 +2386,7 @@ var init_publisher = __esm({
 });
 
 // lib/validator.ts
-var validator_exports = {};
-__export(validator_exports, {
-  printValidation: () => printValidation,
-  validateConfig: () => validateConfig,
-  validateEnv: () => validateEnv
-});
-import fs11 from "fs";
+import fs12 from "fs";
 function validateConfig(cfg) {
   const checks = [];
   const requiredStrings = ["siteName", "siteUrl", "author", "authorLocation", "postsDir"];
@@ -2313,7 +2412,7 @@ function validateConfig(cfg) {
     ["gscQueriesCsv", cfg.gscQueriesCsv]
   ];
   for (const [name, p] of dirPaths) {
-    if (fs11.existsSync(p)) {
+    if (fs12.existsSync(p)) {
       checks.push({ field: name, status: "ok", message: `Found: ${p}` });
     } else {
       checks.push({ field: name, status: "warn", message: `Not found: ${p} (may be intentional)` });
@@ -2396,12 +2495,12 @@ var init_validator = __esm({
 });
 
 // lib/brain/index.ts
-import fs12 from "node:fs";
-import path10 from "node:path";
+import fs13 from "node:fs";
+import path11 from "node:path";
 function ensureDir() {
   const dir = BRAIN_DIR();
-  if (!fs12.existsSync(dir)) {
-    fs12.mkdirSync(dir, { recursive: true });
+  if (!fs13.existsSync(dir)) {
+    fs13.mkdirSync(dir, { recursive: true });
   }
 }
 function hotToYaml(hot) {
@@ -2451,11 +2550,11 @@ function hotToYaml(hot) {
 }
 function readBrain() {
   const hpath = HOT_PATH();
-  if (!fs12.existsSync(hpath)) {
+  if (!fs13.existsSync(hpath)) {
     return { ...DEFAULT_HOT, lastUpdated: (/* @__PURE__ */ new Date()).toISOString() };
   }
   try {
-    const raw = fs12.readFileSync(hpath, "utf-8");
+    const raw = fs13.readFileSync(hpath, "utf-8");
     const match = raw.match(/^---\n([\s\S]*?)\n---/);
     if (!match) return { ...DEFAULT_HOT };
     const frontmatter = {};
@@ -2598,7 +2697,7 @@ function writeBrain(hot) {
   ensureDir();
   const existing = readBrain();
   const merged = { ...existing, ...hot, lastUpdated: (/* @__PURE__ */ new Date()).toISOString() };
-  fs12.writeFileSync(HOT_PATH(), hotToYaml(merged));
+  fs13.writeFileSync(HOT_PATH(), hotToYaml(merged));
 }
 function appendLog(entry) {
   ensureDir();
@@ -2607,13 +2706,13 @@ function appendLog(entry) {
 ${entry.step ? `  - step: ${entry.step}
 ` : ""}${entry.detail ? `  - detail: ${entry.detail}
 ` : ""}`;
-  fs12.appendFileSync(LOG_PATH(), logLine);
+  fs13.appendFileSync(LOG_PATH(), logLine);
 }
 function readLog(limit = 20) {
   const lpath = LOG_PATH();
-  if (!fs12.existsSync(lpath)) return [];
+  if (!fs13.existsSync(lpath)) return [];
   try {
-    const raw = fs12.readFileSync(lpath, "utf-8");
+    const raw = fs13.readFileSync(lpath, "utf-8");
     const lines = raw.split("\n").filter((l) => l.startsWith("- **"));
     const entries = [];
     for (const line of lines.slice(-limit)) {
@@ -2674,9 +2773,9 @@ var BRAIN_DIR, HOT_PATH, LOG_PATH, DEFAULT_HOT;
 var init_brain = __esm({
   "lib/brain/index.ts"() {
     "use strict";
-    BRAIN_DIR = () => path10.join(process.cwd(), ".seoflow", "brain");
-    HOT_PATH = () => path10.join(BRAIN_DIR(), "hot.md");
-    LOG_PATH = () => path10.join(BRAIN_DIR(), "log.md");
+    BRAIN_DIR = () => path11.join(process.cwd(), ".seoflow", "brain");
+    HOT_PATH = () => path11.join(BRAIN_DIR(), "hot.md");
+    LOG_PATH = () => path11.join(BRAIN_DIR(), "log.md");
     DEFAULT_HOT = {
       brain_schema: "seoflow-brain.v1",
       lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
@@ -2697,8 +2796,8 @@ __export(structured_output_exports, {
   validateShape: () => validateShape,
   writeDataSidecar: () => writeDataSidecar
 });
-import fs13 from "node:fs";
-import path11 from "node:path";
+import fs14 from "node:fs";
+import path12 from "node:path";
 function extractDataBlock(text) {
   const dataBlockMatch = text.match(/```data\n([\s\S]*?)```/);
   if (!dataBlockMatch) {
@@ -2738,10 +2837,10 @@ function isTechnicalData(data) {
   return typeof data === "object" && data !== null && data.kind === "technical-audit" && typeof data.scores === "object";
 }
 function writeDataSidecar(outputPath, data) {
-  const dir = path11.dirname(outputPath);
-  const base = path11.basename(outputPath, path11.extname(outputPath));
-  const sidecarPath = path11.join(dir, `${base}.data.json`);
-  fs13.writeFileSync(sidecarPath, JSON.stringify(data, null, 2));
+  const dir = path12.dirname(outputPath);
+  const base = path12.basename(outputPath, path12.extname(outputPath));
+  const sidecarPath = path12.join(dir, `${base}.data.json`);
+  fs14.writeFileSync(sidecarPath, JSON.stringify(data, null, 2));
   return sidecarPath;
 }
 var init_structured_output = __esm({
@@ -2752,8 +2851,8 @@ var init_structured_output = __esm({
 
 // lib/python/python-manager.ts
 import { exec, execSync } from "child_process";
-import path12 from "path";
-import fs14 from "fs";
+import path13 from "path";
+import fs15 from "fs";
 import { promisify } from "util";
 var execPromise, PythonManager;
 var init_python_manager = __esm({
@@ -2782,9 +2881,9 @@ var init_python_manager = __esm({
       static getPythonPath() {
         if (_PythonManager.virtualEnvPath) {
           if (process.platform === "win32") {
-            return path12.join(_PythonManager.virtualEnvPath, "Scripts", "python.exe");
+            return path13.join(_PythonManager.virtualEnvPath, "Scripts", "python.exe");
           } else {
-            return path12.join(_PythonManager.virtualEnvPath, "bin", "python");
+            return path13.join(_PythonManager.virtualEnvPath, "bin", "python");
           }
         }
         return _PythonManager.pythonPath;
@@ -2817,12 +2916,12 @@ var init_python_manager = __esm({
        */
       static resolveScriptPath(scriptName, workingDir) {
         const candidates = [
-          path12.resolve(workingDir, "python", `${scriptName}.py`),
-          path12.resolve(workingDir, "scripts", `${scriptName}.py`),
-          path12.resolve(workingDir, ".seoflow", "scripts", `${scriptName}.py`)
+          path13.resolve(workingDir, "python", `${scriptName}.py`),
+          path13.resolve(workingDir, "scripts", `${scriptName}.py`),
+          path13.resolve(workingDir, ".seoflow", "scripts", `${scriptName}.py`)
         ];
         for (const cp of candidates) {
-          if (fs14.existsSync(cp)) return cp;
+          if (fs15.existsSync(cp)) return cp;
         }
         return candidates[0];
       }
@@ -2832,7 +2931,7 @@ var init_python_manager = __esm({
       static run(options) {
         const { scriptName, args = [], timeout = 6e4, workingDir = process.cwd() } = options;
         const scriptPath = this.resolveScriptPath(scriptName, workingDir);
-        if (!scriptPath || !fs14.existsSync(scriptPath)) {
+        if (!scriptPath || !fs15.existsSync(scriptPath)) {
           return {
             stdout: "",
             stderr: `Script not found: ${scriptPath}`,
@@ -2869,7 +2968,7 @@ var init_python_manager = __esm({
       static async runAsync(options) {
         const { scriptName, args = [], timeout = 6e4, workingDir = process.cwd() } = options;
         const scriptPath = this.resolveScriptPath(scriptName, workingDir);
-        if (!scriptPath || !fs14.existsSync(scriptPath)) {
+        if (!scriptPath || !fs15.existsSync(scriptPath)) {
           return Promise.resolve({
             stdout: "",
             stderr: `Script not found: ${scriptPath}`,
@@ -2923,7 +3022,7 @@ var init_python_manager = __esm({
        * Install dependencies from requirements.txt
        */
       static installDependencies(requirementsPath = "python/requirements.txt") {
-        if (!fs14.existsSync(requirementsPath)) {
+        if (!fs15.existsSync(requirementsPath)) {
           return {
             stdout: "",
             stderr: `Requirements file not found: ${requirementsPath}`,
@@ -2938,10 +3037,10 @@ var init_python_manager = __esm({
        */
       static checkDependencies() {
         const requirementsPath = "python/requirements.txt";
-        if (!fs14.existsSync(requirementsPath)) {
+        if (!fs15.existsSync(requirementsPath)) {
           return { missing: ["requirements.txt file not found"], installed: [] };
         }
-        const requirements = fs14.readFileSync(requirementsPath, "utf8").split("\n").map((line) => line.trim()).filter((line) => line && !line.startsWith("#")).map((line) => line.split(/[<>=]/)[0].trim());
+        const requirements = fs15.readFileSync(requirementsPath, "utf8").split("\n").map((line) => line.trim()).filter((line) => line && !line.startsWith("#")).map((line) => line.split(/[<>=]/)[0].trim());
         const missing = [];
         const installed = [];
         requirements.forEach((packageName) => {
@@ -2964,7 +3063,7 @@ __export(backlinks_exports, {
   BacklinkAnalyzer: () => BacklinkAnalyzer
 });
 import { execSync as execSync2 } from "child_process";
-import path13 from "path";
+import path14 from "path";
 var BacklinkAnalyzer;
 var init_backlinks = __esm({
   "lib/backlinks/backlinks.ts"() {
@@ -3072,7 +3171,7 @@ var init_backlinks = __esm({
        * Verifies backlinks still exist
        */
       static async verify(backlinks) {
-        const scriptPath = path13.join(process.cwd(), "python", "verify_backlinks.py");
+        const scriptPath = path14.join(process.cwd(), "python", "verify_backlinks.py");
         const cmd = `python3 ${scriptPath} --urls "${JSON.stringify(backlinks)}" --json`;
         try {
           const output = execSync2(cmd, { encoding: "utf8" });
@@ -3116,36 +3215,36 @@ var init_backlinks = __esm({
 });
 
 // lib/brain/vault-fs.ts
-import fs15 from "fs";
-import path14 from "path";
+import fs16 from "fs";
+import path15 from "path";
 function vaultDir(clientSlug, rootDir) {
   const base = rootDir || process.cwd();
-  return path14.join(base, BRAIN_ROOT, "brain", clientSlug);
+  return path15.join(base, BRAIN_ROOT, "brain", clientSlug);
 }
 function wikiDir(clientSlug, rootDir) {
-  return path14.join(vaultDir(clientSlug, rootDir), "wiki");
+  return path15.join(vaultDir(clientSlug, rootDir), "wiki");
 }
 function ensureVault(clientSlug, rootDir) {
   const wd = wikiDir(clientSlug, rootDir);
   const dirs = [
     wd,
-    path14.join(wd, "audits"),
-    path14.join(wd, "findings"),
-    path14.join(wd, "decisions"),
-    path14.join(wd, "keywords"),
-    path14.join(wd, "pages"),
-    path14.join(wd, "entities"),
-    path14.join(wd, "competitors"),
-    path14.join(wd, "flows"),
-    path14.join(wd, "concepts"),
-    path14.join(wd, "deliverables"),
-    path14.join(wd, "questions"),
-    path14.join(wd, "sources"),
-    path14.join(vaultDir(clientSlug, rootDir), "attachments"),
-    path14.join(vaultDir(clientSlug, rootDir), "templates")
+    path15.join(wd, "audits"),
+    path15.join(wd, "findings"),
+    path15.join(wd, "decisions"),
+    path15.join(wd, "keywords"),
+    path15.join(wd, "pages"),
+    path15.join(wd, "entities"),
+    path15.join(wd, "competitors"),
+    path15.join(wd, "flows"),
+    path15.join(wd, "concepts"),
+    path15.join(wd, "deliverables"),
+    path15.join(wd, "questions"),
+    path15.join(wd, "sources"),
+    path15.join(vaultDir(clientSlug, rootDir), "attachments"),
+    path15.join(vaultDir(clientSlug, rootDir), "templates")
   ];
   for (const d of dirs) {
-    if (!fs15.existsSync(d)) fs15.mkdirSync(d, { recursive: true });
+    if (!fs16.existsSync(d)) fs16.mkdirSync(d, { recursive: true });
   }
   return wd;
 }
@@ -3180,15 +3279,15 @@ function quoteYaml(val) {
 function writeVaultNote(clientSlug, typeDir, slug, frontmatter, body, rootDir) {
   const wd = wikiDir(clientSlug, rootDir);
   ensureVault(clientSlug, rootDir);
-  const dir = path14.join(wd, typeDir);
-  if (!fs15.existsSync(dir)) fs15.mkdirSync(dir, { recursive: true });
-  const filePath = path14.join(dir, `${slug}.md`);
+  const dir = path15.join(wd, typeDir);
+  if (!fs16.existsSync(dir)) fs16.mkdirSync(dir, { recursive: true });
+  const filePath = path15.join(dir, `${slug}.md`);
   const fmStr = buildFrontmatter(frontmatter);
   const content = `${fmStr}
 
 ${body.trim()}
 `;
-  fs15.writeFileSync(filePath, content, "utf8");
+  fs16.writeFileSync(filePath, content, "utf8");
   return filePath;
 }
 var BRAIN_ROOT;
@@ -3200,16 +3299,16 @@ var init_vault_fs = __esm({
 });
 
 // lib/brain/evidence-ledger.ts
-import fs16 from "fs";
-import path15 from "path";
+import fs17 from "fs";
+import path16 from "path";
 function ledgerPath(clientSlug, rootDir) {
-  return path15.join(vaultDir(clientSlug, rootDir), LEDGER_FILE);
+  return path16.join(vaultDir(clientSlug, rootDir), LEDGER_FILE);
 }
 function loadLedger(clientSlug, rootDir) {
   const lp = ledgerPath(clientSlug, rootDir);
-  if (fs16.existsSync(lp)) {
+  if (fs17.existsSync(lp)) {
     try {
-      return JSON.parse(fs16.readFileSync(lp, "utf8"));
+      return JSON.parse(fs17.readFileSync(lp, "utf8"));
     } catch {
     }
   }
@@ -3218,10 +3317,10 @@ function loadLedger(clientSlug, rootDir) {
 function saveLedger(ledger, rootDir) {
   const slug = ledger.clientSlug || "default";
   const lp = ledgerPath(slug, rootDir);
-  const vd = path15.dirname(lp);
-  if (!fs16.existsSync(vd)) fs16.mkdirSync(vd, { recursive: true });
+  const vd = path16.dirname(lp);
+  if (!fs17.existsSync(vd)) fs17.mkdirSync(vd, { recursive: true });
   ledger.updated = (/* @__PURE__ */ new Date()).toISOString();
-  fs16.writeFileSync(lp, JSON.stringify(ledger, null, 2), "utf8");
+  fs17.writeFileSync(lp, JSON.stringify(ledger, null, 2), "utf8");
 }
 function recordClaim(clientSlug, claim, source, confidence = "medium", rootDir) {
   const ledger = loadLedger(clientSlug, rootDir);
@@ -3256,8 +3355,8 @@ __export(brain_manager_exports, {
   suggestNextActions: () => suggestNextActions,
   vaultSummary: () => vaultSummary
 });
-import fs17 from "node:fs";
-import path16 from "node:path";
+import fs18 from "node:fs";
+import path17 from "node:path";
 function getSlug() {
   try {
     return getClientSlug();
@@ -3359,24 +3458,24 @@ function recordSignal(url, signalId, label, severity, detail) {
   recordClaim(getSlug(), `${label}: ${detail}`, url, severity === "high" ? "high" : "medium");
 }
 function vaultSummary() {
-  const baseDir = path16.join(process.cwd(), ".seoflow", "brain", getSlug());
-  if (!fs17.existsSync(baseDir)) return "No vault data yet. Run an audit first.";
+  const baseDir = path17.join(process.cwd(), ".seoflow", "brain", getSlug());
+  if (!fs18.existsSync(baseDir)) return "No vault data yet. Run an audit first.";
   const lines = ["## Vault Summary"];
   const types = ["audits", "findings", "decisions", "deliverables", "entities"];
   for (const type of types) {
-    const dir = path16.join(baseDir, "wiki", type);
-    if (fs17.existsSync(dir)) {
-      const files = fs17.readdirSync(dir).filter((f) => f.endsWith(".md"));
+    const dir = path17.join(baseDir, "wiki", type);
+    if (fs18.existsSync(dir)) {
+      const files = fs18.readdirSync(dir).filter((f) => f.endsWith(".md"));
       lines.push(`- ${type}: ${files.length} notes`);
     }
   }
-  const auditsDir = path16.join(baseDir, "wiki", "audits");
-  if (fs17.existsSync(auditsDir)) {
-    const files = fs17.readdirSync(auditsDir).filter((f) => f.endsWith(".md")).sort().reverse().slice(0, 5);
+  const auditsDir = path17.join(baseDir, "wiki", "audits");
+  if (fs18.existsSync(auditsDir)) {
+    const files = fs18.readdirSync(auditsDir).filter((f) => f.endsWith(".md")).sort().reverse().slice(0, 5);
     if (files.length > 0) {
       lines.push("\n**Latest audits:**");
       for (const f of files) {
-        const raw = fs17.readFileSync(path16.join(auditsDir, f), "utf-8");
+        const raw = fs18.readFileSync(path17.join(auditsDir, f), "utf-8");
         const titleMatch = raw.match(/title: (.+)/);
         lines.push(`- ${titleMatch?.[1] || f.replace(".md", "")}`);
       }
@@ -3394,10 +3493,10 @@ function vaultSummary() {
 }
 function suggestNextActions() {
   const actions = [];
-  const baseDir = path16.join(process.cwd(), ".seoflow", "brain", getSlug(), "wiki", "findings");
-  if (fs17.existsSync(baseDir)) {
-    const highSeverity = fs17.readdirSync(baseDir).filter((f) => {
-      const content = fs17.readFileSync(path16.join(baseDir, f), "utf-8");
+  const baseDir = path17.join(process.cwd(), ".seoflow", "brain", getSlug(), "wiki", "findings");
+  if (fs18.existsSync(baseDir)) {
+    const highSeverity = fs18.readdirSync(baseDir).filter((f) => {
+      const content = fs18.readFileSync(path17.join(baseDir, f), "utf-8");
       return content.includes("**Severity:** high");
     });
     if (highSeverity.length > 0) {
@@ -3452,8 +3551,8 @@ __export(url_auditor_exports, {
   isUrl: () => isUrl
 });
 import { execSync as execSync3 } from "node:child_process";
-import path17 from "node:path";
-import fs18 from "node:fs";
+import path18 from "node:path";
+import fs19 from "node:fs";
 function isUrl(s) {
   return /^https?:\/\//i.test(s);
 }
@@ -3499,9 +3598,9 @@ function parseHtmlSignals(html) {
   return { title, description, canonical, h1, h2, jsonLd: jsonLD, metaRobots, ogTags, links: { internal, external } };
 }
 function fetchPageSignals(url) {
-  const scriptsDir = path17.join(process.cwd(), "python");
-  const fetchPath = path17.join(scriptsDir, "fetch_page.py");
-  if (fs18.existsSync(fetchPath)) {
+  const scriptsDir = path18.join(process.cwd(), "python");
+  const fetchPath = path18.join(scriptsDir, "fetch_page.py");
+  if (fs19.existsSync(fetchPath)) {
     try {
       const raw = execSync3(`python3 "${fetchPath}" "${url}" 2>/dev/null`, {
         timeout: 2e4,
@@ -3530,8 +3629,8 @@ function fetchPageSignals(url) {
       console.log(`     \u26A0\uFE0F  fetch_page.py failed: ${e instanceof Error ? e.message.slice(0, 100) : "unknown"}`);
     }
   }
-  const renderPath = path17.join(scriptsDir, "render_page.py");
-  if (fs18.existsSync(renderPath)) {
+  const renderPath = path18.join(scriptsDir, "render_page.py");
+  if (fs19.existsSync(renderPath)) {
     try {
       const raw = execSync3(`python3 "${renderPath}" "${url}" --json 2>/dev/null`, {
         timeout: 25e3,
@@ -3602,8 +3701,8 @@ function basicFetchSignals(url) {
 }
 function runPSI(url) {
   try {
-    const scriptPath = path17.join(process.cwd(), "python", "pagespeed_check.py");
-    if (fs18.existsSync(scriptPath)) {
+    const scriptPath = path18.join(process.cwd(), "python", "pagespeed_check.py");
+    if (fs19.existsSync(scriptPath)) {
       const raw = execSync3(`python3 "${scriptPath}" "${url}" --json 2>/dev/null`, { timeout: 6e4, encoding: "utf-8" });
       const data = JSON.parse(raw);
       return {
@@ -3621,8 +3720,8 @@ function runPSI(url) {
 }
 function checkGscIndexation(url) {
   try {
-    const scriptPath = path17.join(process.cwd(), "python", "gsc_inspect.py");
-    if (!fs18.existsSync(scriptPath)) return null;
+    const scriptPath = path18.join(process.cwd(), "python", "gsc_inspect.py");
+    if (!fs19.existsSync(scriptPath)) return null;
     const raw = execSync3(`python3 "${scriptPath}" "${url}" 2>/dev/null`, { timeout: 3e4, encoding: "utf-8" });
     const lines = raw.split("\n");
     const indexed = lines.some((l) => l.toLowerCase().includes("indexed") || l.toLowerCase().includes("submitted"));
@@ -3634,8 +3733,8 @@ function checkGscIndexation(url) {
 }
 function autoGenerateSchema(url, signals) {
   try {
-    const scriptPath = path17.join(process.cwd(), "python", "schema_generate.py");
-    if (!fs18.existsSync(scriptPath)) return null;
+    const scriptPath = path18.join(process.cwd(), "python", "schema_generate.py");
+    if (!fs19.existsSync(scriptPath)) return null;
     const raw = execSync3(`python3 "${scriptPath}" "${url}" 2>/dev/null`, { timeout: 3e4, encoding: "utf-8" });
     const jsonMatch = raw.match(/\{[\s\S]*"@type"[\s\S]*\}/);
     if (!jsonMatch) return null;
@@ -4646,39 +4745,39 @@ __export(extensions_exports, {
   getSupportedExtensions: () => getSupportedExtensions,
   installExtension: () => installExtension
 });
-import fs19 from "fs";
-import path18 from "path";
+import fs20 from "fs";
+import path19 from "path";
 import { fileURLToPath } from "url";
 function resolveRootDir(rootDir) {
   const base = rootDir || process.cwd();
-  return path18.resolve(base);
+  return path19.resolve(base);
 }
 function getStateFilePath(rootDir) {
   const resolvedRootDir = resolveRootDir(rootDir);
-  return path18.join(resolvedRootDir, ".seoflow", "extensions.json");
+  return path19.join(resolvedRootDir, ".seoflow", "extensions.json");
 }
 function findExtensionBundleRoot(extensionId, rootDir) {
   const candidates = [
-    path18.resolve(resolveRootDir(rootDir), "extensions", extensionId),
-    path18.resolve(path18.dirname(fileURLToPath(import.meta.url)), "..", "extensions", extensionId),
-    path18.resolve(path18.dirname(fileURLToPath(import.meta.url)), "..", "..", "extensions", extensionId)
+    path19.resolve(resolveRootDir(rootDir), "extensions", extensionId),
+    path19.resolve(path19.dirname(fileURLToPath(import.meta.url)), "..", "extensions", extensionId),
+    path19.resolve(path19.dirname(fileURLToPath(import.meta.url)), "..", "..", "extensions", extensionId)
   ];
-  return candidates.find((candidate) => fs19.existsSync(candidate)) || null;
+  return candidates.find((candidate) => fs20.existsSync(candidate)) || null;
 }
 function provisionExtensionBundle(extensionId, rootDir) {
   const resolvedRootDir = resolveRootDir(rootDir);
   const sourceDir = findExtensionBundleRoot(extensionId, resolvedRootDir);
   if (!sourceDir) return;
-  const destinationDir = path18.join(resolvedRootDir, ".seoflow", "extensions", extensionId);
-  fs19.mkdirSync(path18.dirname(destinationDir), { recursive: true });
-  fs19.rmSync(destinationDir, { recursive: true, force: true });
-  fs19.cpSync(sourceDir, destinationDir, { recursive: true });
+  const destinationDir = path19.join(resolvedRootDir, ".seoflow", "extensions", extensionId);
+  fs20.mkdirSync(path19.dirname(destinationDir), { recursive: true });
+  fs20.rmSync(destinationDir, { recursive: true, force: true });
+  fs20.cpSync(sourceDir, destinationDir, { recursive: true });
 }
 function readState(rootDir) {
   const statePath = getStateFilePath(rootDir);
-  if (!fs19.existsSync(statePath)) return {};
+  if (!fs20.existsSync(statePath)) return {};
   try {
-    const parsed = JSON.parse(fs19.readFileSync(statePath, "utf8"));
+    const parsed = JSON.parse(fs20.readFileSync(statePath, "utf8"));
     return parsed;
   } catch {
     return {};
@@ -4686,8 +4785,8 @@ function readState(rootDir) {
 }
 function writeState(rootDir, state) {
   const statePath = getStateFilePath(rootDir);
-  fs19.mkdirSync(path18.dirname(statePath), { recursive: true });
-  fs19.writeFileSync(statePath, JSON.stringify(state, null, 2));
+  fs20.mkdirSync(path19.dirname(statePath), { recursive: true });
+  fs20.writeFileSync(statePath, JSON.stringify(state, null, 2));
 }
 function getSupportedExtensions() {
   return SUPPORTED_EXTENSIONS.map((ext) => ({ ...ext }));
@@ -4851,11 +4950,11 @@ __export(orchestrator_exports, {
   registerStepRunner: () => registerStepRunner,
   runPipeline: () => runPipeline
 });
-import fs20 from "node:fs";
-import path19 from "node:path";
+import fs21 from "node:fs";
+import path20 from "node:path";
 function loadState() {
   const p = STATE_PATH();
-  if (!fs20.existsSync(p)) {
+  if (!fs21.existsSync(p)) {
     return {
       version: 1,
       lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
@@ -4865,7 +4964,7 @@ function loadState() {
     };
   }
   try {
-    return JSON.parse(fs20.readFileSync(p, "utf-8"));
+    return JSON.parse(fs21.readFileSync(p, "utf-8"));
   } catch {
     return {
       version: 1,
@@ -4878,10 +4977,10 @@ function loadState() {
 }
 function saveState(state) {
   const p = STATE_PATH();
-  const dir = path19.dirname(p);
-  if (!fs20.existsSync(dir)) fs20.mkdirSync(dir, { recursive: true });
+  const dir = path20.dirname(p);
+  if (!fs21.existsSync(dir)) fs21.mkdirSync(dir, { recursive: true });
   state.lastUpdated = (/* @__PURE__ */ new Date()).toISOString();
-  fs20.writeFileSync(p, JSON.stringify(state, null, 2));
+  fs21.writeFileSync(p, JSON.stringify(state, null, 2));
 }
 function createAssignment(slug, step) {
   return {
@@ -5005,9 +5104,9 @@ async function runPipeline(slugs, dryRun = false) {
           totalChanges += changeCount;
           appendLog({ type: "change", summary: `${step.name}: ${changeCount} changes on ${slug}`, slug, step: step.id, changeCount });
           if (result.data) {
-            const sidecarPath = path19.join(process.cwd(), ".seoflow", "data", `${slug}-${step.id}.data.json`);
-            fs20.mkdirSync(path19.dirname(sidecarPath), { recursive: true });
-            fs20.writeFileSync(sidecarPath, JSON.stringify(result.data, null, 2));
+            const sidecarPath = path20.join(process.cwd(), ".seoflow", "data", `${slug}-${step.id}.data.json`);
+            fs21.mkdirSync(path20.dirname(sidecarPath), { recursive: true });
+            fs21.writeFileSync(sidecarPath, JSON.stringify(result.data, null, 2));
           }
         } else {
           updateAssignment(state, assignment.id, {
@@ -5097,7 +5196,7 @@ var init_orchestrator = __esm({
     init_brain();
     init_degradation();
     init_types();
-    STATE_PATH = () => path19.join(process.cwd(), ".seoflow", "data", "pipeline-state.json");
+    STATE_PATH = () => path20.join(process.cwd(), ".seoflow", "data", "pipeline-state.json");
     stepRunners = /* @__PURE__ */ new Map();
   }
 });
@@ -5180,29 +5279,29 @@ var init_pexels_client = __esm({
 });
 
 // lib/ubersuggest-client.ts
-import fs21 from "fs";
-import path20 from "path";
+import fs22 from "fs";
+import path21 from "path";
 function cachePath() {
   return loadConfig().keywordCachePath;
 }
 function loadCache() {
   try {
     const p = cachePath();
-    if (fs21.existsSync(p)) {
-      return JSON.parse(fs21.readFileSync(p, "utf8"));
+    if (fs22.existsSync(p)) {
+      return JSON.parse(fs22.readFileSync(p, "utf8"));
     }
   } catch {
   }
   return [];
 }
 function saveCache(cache) {
-  fs21.writeFileSync(cachePath(), JSON.stringify(cache, null, 2));
+  fs22.writeFileSync(cachePath(), JSON.stringify(cache, null, 2));
 }
 function findRoot3() {
   let dir = process.cwd();
   for (let i = 0; i < 10; i++) {
-    if (fs21.existsSync(path20.join(dir, "seoflow.config.json"))) return dir;
-    const p = path20.dirname(dir);
+    if (fs22.existsSync(path21.join(dir, "seoflow.config.json"))) return dir;
+    const p = path21.dirname(dir);
     if (p === dir) break;
     dir = p;
   }
@@ -5322,14 +5421,40 @@ var init_ubersuggest_client = __esm({
 });
 
 // lib/semrush-client.ts
+function getDatabase() {
+  return process.env.SEMRUSH_DATABASE || process.env.SEOFLOW_DATABASE || "us";
+}
+function parseSemrushCsv(text) {
+  const lines = text.trim().split("\n");
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(";").map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const values = line.split(";");
+    const obj = { _raw: line };
+    headers.forEach((h, i) => {
+      obj[h] = (values[i] || "").trim();
+    });
+    return obj;
+  });
+}
+function rowToKeyword(row) {
+  const cleanKd = Number(String(row["Kd"] || "0").replace(/\+$/, "").trim());
+  return {
+    keyword: String(row["Ph"] || row["Phrase"] || ""),
+    searchVolume: Number(row["Nq"] || 0),
+    difficulty: cleanKd,
+    cpc: Number(row["Cp"] || 0),
+    competition: Number(row["Co"] || 0)
+  };
+}
 async function researchKeywords2(seed, context = "") {
   return SEMrushClient.researchKeywords(seed, context);
 }
-var SEMrushClient;
+var SEMRUSH_API, SEMrushClient;
 var init_semrush_client = __esm({
   "lib/semrush-client.ts"() {
     "use strict";
-    init_python_manager();
+    SEMRUSH_API = "https://api.semrush.com/";
     SEMrushClient = class {
       /**
        * Check if SEMrush API key is available
@@ -5338,41 +5463,69 @@ var init_semrush_client = __esm({
         return !!process.env.SEMRUSH_API_KEY;
       }
       /**
-       * Research keywords using SEMrush
+       * Research keywords using SEMrush API.
+       * Fetches metrics for the seed + related keyword ideas.
        */
       static async researchKeywords(seed, context = "") {
+        if (!this.hasKey()) {
+          return this.fallbackResearch(seed);
+        }
         try {
-          if (!this.hasKey()) {
-            return this.fallbackResearch(seed);
-          }
-          if (!PythonManager.isPythonAvailable()) {
-            return this.fallbackResearch(seed);
-          }
-          const result = PythonManager.run({
-            scriptName: "semrush_keywords",
-            args: [
-              `--seed "${this.escapeQuotes(seed)}"`,
-              `--context "${this.escapeQuotes(context)}"`,
-              `--api-key "${process.env.SEMRUSH_API_KEY}"`,
-              "--json"
-            ],
-            timeout: 6e4
+          const key = process.env.SEMRUSH_API_KEY;
+          const database = getDatabase();
+          const exportColumns = "Ph,Nq,Cp,Kd,Co";
+          const overviewParams = new URLSearchParams();
+          overviewParams.set("type", "phrase_this");
+          overviewParams.set("key", key);
+          overviewParams.set("phrase", seed);
+          overviewParams.set("export_columns", exportColumns);
+          overviewParams.set("database", database);
+          const overviewResp = await fetch(`${SEMRUSH_API}?${overviewParams.toString()}`, {
+            headers: { "Accept": "text/csv" }
           });
-          if (result.code === 0) {
-            const data = JSON.parse(result.stdout);
-            return {
-              focusKeyword: data.focusKeyword || seed,
-              searchVolume: data.searchVolume || 0,
-              difficulty: data.difficulty || 0,
-              relatedKeywords: data.relatedKeywords || [],
-              source: "semrush"
-            };
-          } else {
-            console.error("SEMrush research failed:", result.stderr);
+          const overviewText = await overviewResp.text();
+          if (overviewText.startsWith("ERROR")) {
+            console.error(`SEMrush phrase_this failed: ${overviewText.split("\n")[0]}`);
             return this.fallbackResearch(seed);
           }
+          const overviewRows = parseSemrushCsv(overviewText);
+          const seedData = overviewRows[0] ? rowToKeyword(overviewRows[0]) : null;
+          const relatedParams = new URLSearchParams();
+          relatedParams.set("type", "phrase_related");
+          relatedParams.set("key", key);
+          relatedParams.set("phrase", seed);
+          relatedParams.set("export_columns", exportColumns);
+          relatedParams.set("display_limit", "10");
+          relatedParams.set("database", database);
+          const relatedResp = await fetch(`${SEMRUSH_API}?${relatedParams.toString()}`, {
+            headers: { "Accept": "text/csv" }
+          });
+          const relatedText = await relatedResp.text();
+          let relatedKeywords = [];
+          if (!relatedText.startsWith("ERROR")) {
+            const relatedRows = parseSemrushCsv(relatedText);
+            relatedKeywords = relatedRows.map(rowToKeyword).filter((kw) => kw.keyword && kw.keyword !== seed).slice(0, 10);
+          } else {
+            console.error(`SEMrush phrase_related failed: ${relatedText.split("\n")[0]}`);
+          }
+          if (!seedData) {
+            return {
+              focusKeyword: seed,
+              searchVolume: 0,
+              difficulty: 0,
+              relatedKeywords,
+              source: relatedKeywords.length > 0 ? "semrush" : "fallback"
+            };
+          }
+          return {
+            focusKeyword: seedData.keyword,
+            searchVolume: seedData.searchVolume,
+            difficulty: seedData.difficulty,
+            relatedKeywords,
+            source: "semrush"
+          };
         } catch (error) {
-          console.error("SEMrush research error:", error.message);
+          console.error("SEMrush research error:", error?.message);
           return this.fallbackResearch(seed);
         }
       }
@@ -5388,25 +5541,34 @@ var init_semrush_client = __esm({
           source: "fallback"
         };
       }
-      /**
-       * Escape quotes for shell command
-       */
-      static escapeQuotes(text) {
-        return text.replace(/"/g, '\\"').replace(/\n/g, "\\n");
-      }
     };
   }
 });
 
 // lib/ahrefs-client.ts
+function getCountry() {
+  return process.env.AHREFS_COUNTRY || process.env.SEOFLOW_COUNTRY || "us";
+}
+function parseAhrefsKeyword(kw) {
+  return {
+    keyword: String(kw.keyword || ""),
+    searchVolume: Number(kw.volume ?? 0),
+    difficulty: Number(kw.difficulty ?? 0),
+    cpc: Number(kw.cpc ?? 0),
+    competition: 0,
+    // not directly returned by Ahrefs
+    traffic: Number(kw.clicks ?? 0),
+    globalVolume: Number(kw.volume ?? 0)
+  };
+}
 async function researchKeywords3(seed, context = "") {
   return AhrefsClient.researchKeywords(seed, context);
 }
-var AhrefsClient;
+var AHREFS_BASE, AhrefsClient;
 var init_ahrefs_client = __esm({
   "lib/ahrefs-client.ts"() {
     "use strict";
-    init_python_manager();
+    AHREFS_BASE = "https://api.ahrefs.com/v3";
     AhrefsClient = class {
       /**
        * Check if Ahrefs API key is available
@@ -5415,42 +5577,60 @@ var init_ahrefs_client = __esm({
         return !!process.env.AHREFS_API_KEY;
       }
       /**
-       * Research keywords using Ahrefs
+       * Research keywords using Ahrefs v3 API.
+       * Fetches metrics for the seed + matching terms for related keywords.
        */
       static async researchKeywords(seed, context = "") {
+        if (!this.hasKey()) {
+          return this.fallbackResearch(seed);
+        }
         try {
-          if (!this.hasKey()) {
+          const token = process.env.AHREFS_API_KEY;
+          const country = getCountry();
+          const headers = {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+          };
+          const overviewUrl = new URL(`${AHREFS_BASE}/keywords-explorer/overview`);
+          const params = overviewUrl.searchParams;
+          params.set("keywords", seed);
+          params.set("country", country);
+          params.set("select", "keyword,volume,difficulty,cpc,clicks,cps");
+          params.set("output", "json");
+          const overviewResp = await fetch(overviewUrl.toString(), { headers });
+          if (!overviewResp.ok) {
+            const text = await overviewResp.text().catch(() => "");
+            console.error(`Ahrefs overview failed: ${overviewResp.status} ${overviewResp.statusText}`, text.slice(0, 200));
             return this.fallbackResearch(seed);
           }
-          if (!PythonManager.isPythonAvailable()) {
-            console.error("AHREFS_API_KEY is set but Python is not available \u2014 cannot run ahrefs_keywords script");
-            return this.fallbackResearch(seed);
-          }
-          const result = PythonManager.run({
-            scriptName: "ahrefs_keywords",
-            args: [
-              `--seed "${this.escapeQuotes(seed)}"`,
-              `--context "${this.escapeQuotes(context)}"`,
-              `--api-key "${process.env.AHREFS_API_KEY}"`,
-              "--json"
-            ],
-            timeout: 6e4
-          });
-          if (result.code === 0) {
-            const data = JSON.parse(result.stdout);
-            return {
-              focusKeyword: data.focusKeyword || seed,
-              searchVolume: data.searchVolume || 0,
-              difficulty: data.difficulty || 0,
-              relatedKeywords: data.relatedKeywords || [],
-              source: "ahrefs"
-            };
+          const overview = await overviewResp.json();
+          const seedData = overview.keywords?.[0] ?? {};
+          const matchingUrl = new URL(`${AHREFS_BASE}/keywords-explorer/matching-terms`);
+          const mParams = matchingUrl.searchParams;
+          mParams.set("keyword", seed);
+          mParams.set("country", country);
+          mParams.set("select", "keyword,volume,difficulty,cpc,clicks,cps");
+          mParams.set("limit", "10");
+          mParams.set("output", "json");
+          const matchingResp = await fetch(matchingUrl.toString(), { headers });
+          let relatedKeywords = [];
+          if (matchingResp.ok) {
+            const matching = await matchingResp.json();
+            if (Array.isArray(matching.keywords)) {
+              relatedKeywords = matching.keywords.filter((k) => k.keyword && k.keyword !== seed).slice(0, 10).map((k) => parseAhrefsKeyword(k));
+            }
           } else {
-            console.error("Ahrefs research failed:", result.stderr);
-            return this.fallbackResearch(seed);
+            console.error(`Ahrefs matching-terms failed: ${matchingResp.status} \u2014 continuing without related keywords`);
           }
+          return {
+            focusKeyword: String(seedData.keyword ?? seed),
+            searchVolume: Number(seedData.volume ?? 0),
+            difficulty: Number(seedData.difficulty ?? 0),
+            relatedKeywords,
+            source: "ahrefs"
+          };
         } catch (error) {
-          console.error("Ahrefs research error:", error.message);
+          console.error("Ahrefs research error:", error?.message);
           return this.fallbackResearch(seed);
         }
       }
@@ -5465,12 +5645,6 @@ var init_ahrefs_client = __esm({
           relatedKeywords: [],
           source: "fallback"
         };
-      }
-      /**
-       * Escape quotes for shell command
-       */
-      static escapeQuotes(text) {
-        return text.replace(/"/g, '\\"').replace(/\n/g, "\\n");
       }
     };
   }
@@ -6103,7 +6277,7 @@ var init_schema = __esm({
 
 // lib/technical/psi.ts
 import { execSync as execSync4 } from "child_process";
-import path21 from "path";
+import path22 from "path";
 function getPSIInstance(apiKey) {
   if (!psiInstance) {
     psiInstance = new PageSpeedInsights(apiKey);
@@ -6112,7 +6286,7 @@ function getPSIInstance(apiKey) {
 }
 function validateUrl(url) {
   try {
-    const scriptPath = path21.join(process.cwd(), "python", "url_safety.py");
+    const scriptPath = path22.join(process.cwd(), "python", "url_safety.py");
     const cmd = `python3 ${scriptPath} --url "${url}"`;
     execSync4(cmd, { encoding: "utf8", stdio: "ignore" });
     return true;
@@ -7047,8 +7221,8 @@ var init_content_quality2 = __esm({
 });
 
 // lib/reports/pdf-generator.ts
-import path22 from "path";
-import fs22 from "fs";
+import path23 from "path";
+import fs23 from "fs";
 var PDFGenerator;
 var init_pdf_generator = __esm({
   "lib/reports/pdf-generator.ts"() {
@@ -7059,12 +7233,12 @@ var init_pdf_generator = __esm({
        * Generates a PDF report using the Claude SEO report generator
        */
       static generate(data, outputPath) {
-        const outputDir = path22.dirname(outputPath);
-        if (!fs22.existsSync(outputDir)) {
-          fs22.mkdirSync(outputDir, { recursive: true });
+        const outputDir = path23.dirname(outputPath);
+        if (!fs23.existsSync(outputDir)) {
+          fs23.mkdirSync(outputDir, { recursive: true });
         }
-        const tempDataPath = path22.join(outputDir, `temp-report-data-${Date.now()}.json`);
-        fs22.writeFileSync(tempDataPath, JSON.stringify(data.data, null, 2));
+        const tempDataPath = path23.join(outputDir, `temp-report-data-${Date.now()}.json`);
+        fs23.writeFileSync(tempDataPath, JSON.stringify(data.data, null, 2));
         try {
           if (!PythonManager.isPythonAvailable()) {
             throw new Error("Python not available - install Python 3.10+");
@@ -7090,7 +7264,7 @@ var init_pdf_generator = __esm({
             timeout: 12e4
             // 2 minutes
           });
-          if (result.code === 0 && fs22.existsSync(outputPath)) {
+          if (result.code === 0 && fs23.existsSync(outputPath)) {
             console.log(`PDF report generated successfully: ${outputPath}`);
             return outputPath;
           } else {
@@ -7101,8 +7275,8 @@ var init_pdf_generator = __esm({
           console.error("PDF generation error:", error);
           throw new Error(`PDF generation failed: ${error}`);
         } finally {
-          if (fs22.existsSync(tempDataPath)) {
-            fs22.unlinkSync(tempDataPath);
+          if (fs23.existsSync(tempDataPath)) {
+            fs23.unlinkSync(tempDataPath);
           }
         }
       }
@@ -7142,8 +7316,8 @@ var init_pdf_generator = __esm({
 
 // lib/reports/reports.ts
 import { execSync as execSync5 } from "child_process";
-import path23 from "path";
-import fs23 from "fs";
+import path24 from "path";
+import fs24 from "fs";
 var ReportGenerator;
 var init_reports = __esm({
   "lib/reports/reports.ts"() {
@@ -7163,18 +7337,18 @@ var init_reports = __esm({
           outputDir = "reports",
           filename = `seoflow-report-${Date.now()}.${format}`
         } = options;
-        if (!fs23.existsSync(outputDir)) {
-          fs23.mkdirSync(outputDir, { recursive: true });
+        if (!fs24.existsSync(outputDir)) {
+          fs24.mkdirSync(outputDir, { recursive: true });
         }
-        const outputPath = path23.join(outputDir, filename);
+        const outputPath = path24.join(outputDir, filename);
         try {
           if (format === "pdf") {
             return PDFGenerator.generateSimpleReport(data, new URL(data.url).hostname, outputPath);
           } else {
-            const scriptPath = path23.join(process.cwd(), "python", "google_report.py");
+            const scriptPath = path24.join(process.cwd(), "python", "google_report.py");
             const cmd = this.buildCommand(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath);
             execSync5(cmd, { encoding: "utf8", stdio: "ignore" });
-            if (fs23.existsSync(outputPath)) {
+            if (fs24.existsSync(outputPath)) {
               console.log(`\u2705 Report generated: ${outputPath}`);
               return outputPath;
             } else {
@@ -7195,7 +7369,7 @@ var init_reports = __esm({
       static buildCommand(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath) {
         const args = [
           "python3",
-          path23.join(process.cwd(), "python", "google_report.py"),
+          path24.join(process.cwd(), "python", "google_report.py"),
           "--url",
           `"${data.url}"`,
           "--score",
@@ -7237,7 +7411,7 @@ var init_reports = __esm({
           version: "1.0",
           data
         };
-        fs23.writeFileSync(outputPath, JSON.stringify(report, null, 2));
+        fs24.writeFileSync(outputPath, JSON.stringify(report, null, 2));
         console.log(`\u2705 Fallback report generated: ${outputPath}`);
         return outputPath;
       }
@@ -7514,8 +7688,8 @@ __export(steps_exports, {
   stepKeywordResearch: () => stepKeywordResearch,
   stepNeuronWriter: () => stepNeuronWriter
 });
-import fs24 from "fs";
-import path24 from "node:path";
+import fs25 from "fs";
+import path25 from "node:path";
 function sanitizeLog(s) {
   return String(s ?? "").replace(/[\r\n]/g, " ");
 }
@@ -8072,7 +8246,7 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
   }
   console.log(`
   \u{1F4C4} ${sanitizeLog(slug)}`);
-  const raw = fs24.readFileSync(filePath, "utf8");
+  const raw = fs25.readFileSync(filePath, "utf8");
   const parsed = parseMdx(raw);
   const gsc = gscPages[slug] || {};
   const input = { slug, filePath, content: parsed.content, frontmatter: parsed.frontmatter, gsc };
@@ -8194,7 +8368,7 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
   if (allChanges.length > 0) {
     if (!dryRun) {
       const newRaw = buildFrontmatterBlock(state.frontmatter) + state.content;
-      fs24.writeFileSync(filePath, newRaw, "utf8");
+      fs25.writeFileSync(filePath, newRaw, "utf8");
     }
     console.log(`     ${dryRun ? "[DRY RUN] Would apply" : "\u2705 Written"} (${allChanges.length} changes)`);
     for (const c of allChanges) console.log(`       \u2022 ${c}`);
@@ -8229,18 +8403,18 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
 }
 function loadPost(slug) {
   const postsDir = getPostsDir();
-  const filePath = path24.join(postsDir, `${slug}.mdx`);
+  const filePath = path25.join(postsDir, `${slug}.mdx`);
   if (!filePath.endsWith(".mdx") && !filePath.endsWith(".md")) {
-    const mdxPath = path24.join(postsDir, `${slug}.mdx`);
-    const mdPath = path24.join(postsDir, `${slug}.md`);
-    if (fs24.existsSync(mdxPath)) return readPostFile(mdxPath);
-    if (fs24.existsSync(mdPath)) return readPostFile(mdPath);
+    const mdxPath = path25.join(postsDir, `${slug}.mdx`);
+    const mdPath = path25.join(postsDir, `${slug}.md`);
+    if (fs25.existsSync(mdxPath)) return readPostFile(mdxPath);
+    if (fs25.existsSync(mdPath)) return readPostFile(mdPath);
     return null;
   }
-  return fs24.existsSync(filePath) ? readPostFile(filePath) : null;
+  return fs25.existsSync(filePath) ? readPostFile(filePath) : null;
 }
 function readPostFile(filePath) {
-  const raw = fs24.readFileSync(filePath, "utf-8");
+  const raw = fs25.readFileSync(filePath, "utf-8");
   const { frontmatter, content } = parseMdx(raw);
   return { filePath, content, frontmatter };
 }
@@ -8417,8 +8591,8 @@ var run_exports = {};
 __export(run_exports, {
   runPipeline: () => runPipeline2
 });
-import fs25 from "fs";
-import path25 from "path";
+import fs26 from "fs";
+import path26 from "path";
 async function cmdCluster() {
   loadEnv();
   loadConfig();
@@ -8499,8 +8673,8 @@ async function cmdExtensions() {
   }
 }
 async function cmdInit() {
-  const configPath = path25.join(process.cwd(), "seoflow.config.json");
-  if (fs25.existsSync(configPath)) {
+  const configPath = path26.join(process.cwd(), "seoflow.config.json");
+  if (fs26.existsSync(configPath)) {
     console.log("\u2713 seoflow.config.json already exists");
     console.log("  Delete it and re-run to reconfigure, or edit it directly.");
     return;
@@ -8508,8 +8682,8 @@ async function cmdInit() {
   console.log("\n  Run the interactive installer:\n");
   console.log("  bash <(curl -s https://raw.githubusercontent.com/imsankz/seoflow/main/install.sh)\n");
   console.log("  Or copy the template and fill it in:");
-  const templatePath = path25.join(process.cwd(), ".seoflow", "seoflow.config.template.json");
-  if (fs25.existsSync(templatePath)) {
+  const templatePath = path26.join(process.cwd(), ".seoflow", "seoflow.config.template.json");
+  if (fs26.existsSync(templatePath)) {
     console.log(`  cp ${templatePath} seoflow.config.json
 `);
   }
@@ -8520,7 +8694,7 @@ async function cmdStatus() {
   const auditLog = loadAuditLog();
   await detectGscSource();
   const postsDir = getPostsDir();
-  const allFiles = fs25.existsSync(postsDir) ? fs25.readdirSync(postsDir).filter((f) => f.endsWith(".mdx")) : [];
+  const allFiles = fs26.existsSync(postsDir) ? fs26.readdirSync(postsDir).filter((f) => f.endsWith(".mdx")) : [];
   const posts = auditLog.posts || {};
   const completed = Object.values(posts).filter((p) => p.status === "completed").length;
   const pending = allFiles.length - completed;
@@ -8585,15 +8759,15 @@ async function cmdStatus() {
 function cmdLearn() {
   loadEnv();
   loadConfig();
-  const learningPath = path25.join(
-    path25.dirname(getAuditLogPath()),
+  const learningPath = path26.join(
+    path26.dirname(getAuditLogPath()),
     "learning.json"
   );
-  if (!fs25.existsSync(learningPath)) {
+  if (!fs26.existsSync(learningPath)) {
     console.log("\n\u26A0\uFE0F  No learning data yet. Run the pipeline on some posts first.\n");
     return;
   }
-  const db = JSON.parse(fs25.readFileSync(learningPath, "utf8"));
+  const db = JSON.parse(fs26.readFileSync(learningPath, "utf8"));
   console.log("\n\u{1F9E0} SeoFlow Learning Insights");
   console.log("\u2500".repeat(60));
   const steps = Object.entries(db.steps || {});
@@ -8627,21 +8801,21 @@ function cmdLearn() {
 function cmdLearningExport(outFile) {
   loadEnv();
   loadConfig();
-  const dataDir = path25.dirname(getAuditLogPath());
-  const learningPath = path25.join(dataDir, "learning.json");
-  const baselinesPath = path25.join(dataDir, "gsc-baselines.json");
+  const dataDir = path26.dirname(getAuditLogPath());
+  const learningPath = path26.join(dataDir, "learning.json");
+  const baselinesPath = path26.join(dataDir, "gsc-baselines.json");
   const bundle = {
     exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
     version: "2.0"
   };
-  if (fs25.existsSync(learningPath)) {
-    bundle.learning = JSON.parse(fs25.readFileSync(learningPath, "utf8"));
+  if (fs26.existsSync(learningPath)) {
+    bundle.learning = JSON.parse(fs26.readFileSync(learningPath, "utf8"));
   }
-  if (fs25.existsSync(baselinesPath)) {
-    bundle.gscBaselines = JSON.parse(fs25.readFileSync(baselinesPath, "utf8"));
+  if (fs26.existsSync(baselinesPath)) {
+    bundle.gscBaselines = JSON.parse(fs26.readFileSync(baselinesPath, "utf8"));
   }
   const dest = outFile || `seoflow-learning-${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.json`;
-  fs25.writeFileSync(dest, JSON.stringify(bundle, null, 2));
+  fs26.writeFileSync(dest, JSON.stringify(bundle, null, 2));
   console.log(`
 \u2705 Learning data exported to: ${dest}`);
   console.log("   Import on another machine: seoflow learning import " + dest + "\n");
@@ -8649,21 +8823,21 @@ function cmdLearningExport(outFile) {
 function cmdLearningImport(inFile) {
   loadEnv();
   loadConfig();
-  if (!inFile || !fs25.existsSync(inFile)) {
+  if (!inFile || !fs26.existsSync(inFile)) {
     console.error(`
 \u274C File not found: ${inFile || "(no file specified)"}`);
     console.error("   Usage: seoflow learning import <file.json>\n");
     process.exit(1);
   }
-  const bundle = JSON.parse(fs25.readFileSync(inFile, "utf8"));
-  const dataDir = path25.dirname(getAuditLogPath());
-  if (!fs25.existsSync(dataDir)) fs25.mkdirSync(dataDir, { recursive: true });
+  const bundle = JSON.parse(fs26.readFileSync(inFile, "utf8"));
+  const dataDir = path26.dirname(getAuditLogPath());
+  if (!fs26.existsSync(dataDir)) fs26.mkdirSync(dataDir, { recursive: true });
   if (bundle.learning) {
-    fs25.writeFileSync(path25.join(dataDir, "learning.json"), JSON.stringify(bundle.learning, null, 2));
+    fs26.writeFileSync(path26.join(dataDir, "learning.json"), JSON.stringify(bundle.learning, null, 2));
     console.log("  \u2705 Imported learning.json");
   }
   if (bundle.gscBaselines) {
-    fs25.writeFileSync(path25.join(dataDir, "gsc-baselines.json"), JSON.stringify(bundle.gscBaselines, null, 2));
+    fs26.writeFileSync(path26.join(dataDir, "gsc-baselines.json"), JSON.stringify(bundle.gscBaselines, null, 2));
     console.log("  \u2705 Imported gsc-baselines.json");
   }
   console.log(`
@@ -8776,11 +8950,11 @@ ${"\u2550".repeat(60)}`);
 `);
     console.log(result.report);
     if (!DRY_RUN) {
-      const reportsDir = path25.join(process.cwd(), ".seoflow", "reports");
-      if (!fs25.existsSync(reportsDir)) fs25.mkdirSync(reportsDir, { recursive: true });
+      const reportsDir = path26.join(process.cwd(), ".seoflow", "reports");
+      if (!fs26.existsSync(reportsDir)) fs26.mkdirSync(reportsDir, { recursive: true });
       const domain = result.url.replace(/https?:\/\//, "").replace(/[\/:]/g, "_");
       const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      const reportPath = path25.join(reportsDir, `${timestamp}-${domain}.md`);
+      const reportPath = path26.join(reportsDir, `${timestamp}-${domain}.md`);
       const header = `# SEO Audit: ${result.url}
 
 **Date:** ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}
@@ -8792,7 +8966,7 @@ ${"\u2550".repeat(60)}`);
         const { writeDataSidecar: writeDataSidecar2 } = await Promise.resolve().then(() => (init_structured_output(), structured_output_exports));
         writeDataSidecar2(reportPath, result.data);
       }
-      fs25.writeFileSync(reportPath, reportContent);
+      fs26.writeFileSync(reportPath, reportContent);
       console.log(`
 \u{1F4DD} Report saved: ${reportPath}`);
     }
@@ -8880,7 +9054,7 @@ ${"\u2550".repeat(60)}`);
     }
     return;
   }
-  const files = fs25.readdirSync(postsDir).filter((f) => f.endsWith(".mdx"));
+  const files = fs26.readdirSync(postsDir).filter((f) => f.endsWith(".mdx"));
   console.log(`\u{1F4C1} ${files.length} posts
 `);
   let candidates = files.map((f) => {
@@ -8889,7 +9063,7 @@ ${"\u2550".repeat(60)}`);
     const prediction = predictPriority(slug, gsc);
     return {
       slug,
-      filePath: path25.join(postsDir, f),
+      filePath: path26.join(postsDir, f),
       priority: prediction.totalScore || 0,
       gsc,
       patterns: prediction.patterns
@@ -8926,7 +9100,7 @@ ${"\u2500".repeat(60)}`);
         initBrain2();
         const fm = (() => {
           try {
-            const raw = fs25.readFileSync(c.filePath, "utf8");
+            const raw = fs26.readFileSync(c.filePath, "utf8");
             const match = raw.match(/^---\n([\s\S]*?)\n---/);
             return {};
           } catch {
@@ -8943,7 +9117,7 @@ ${"\u2500".repeat(60)}`);
     }
     if (!DRY_RUN && r.after) {
       try {
-        const raw = fs25.readFileSync(c.filePath, "utf8");
+        const raw = fs26.readFileSync(c.filePath, "utf8");
         const parsed = await Promise.resolve().then(() => (init_mdx_parser(), mdx_parser_exports));
         const fm = parsed.parseMdx(raw).frontmatter;
         recordContentSnapshot(c.slug, {
@@ -9056,130 +9230,12 @@ var init_run = __esm({
       const validModes = ["all", "meta", "links", "images", "keywords", "neuron", "content", "review", "factcheck", "schema", "technical", "quality", "report"];
       return validModes.includes(modeArg) ? modeArg : "all";
     })();
-    runPipeline2().catch((e) => {
-      console.error("Fatal:", e?.message || e, e?.stack?.split("\n").slice(0, 3).join("\n") || "");
-      process.exit(1);
-    });
-  }
-});
-
-// lib/init.ts
-var init_exports = {};
-__export(init_exports, {
-  interactiveInit: () => interactiveInit
-});
-import fs26 from "fs";
-import path26 from "path";
-import readline from "readline";
-function ask(query, def = "") {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    const prompt = def ? `  ${query} (${def}): ` : `  ${query}: `;
-    rl.question(prompt, (ans) => {
-      rl.close();
-      resolve(ans.trim() || def);
-    });
-  });
-}
-async function interactiveInit() {
-  const cwd = process.cwd();
-  const configPath = path26.join(cwd, "seoflow.config.json");
-  if (fs26.existsSync(configPath)) {
-    console.log("\n  \u26A0\uFE0F  seoflow.config.json already exists. Delete it first to reconfigure.\n");
-    return;
-  }
-  console.log("\n  \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557");
-  console.log("  \u2551       SeoFlow \u2014 Project Setup             \u2551");
-  console.log("  \u255A\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255D");
-  console.log("  Press Enter to accept defaults in (parentheses)\n");
-  const siteName = await ask("Site name", "My Site");
-  const siteUrl = await ask("Site URL (no https://)", "example.com");
-  const author = await ask("Author name", "Author");
-  const authorLoc = await ask("Author location", "Your City");
-  const postsDir = await ask("Posts directory", "src/content/posts");
-  const branch = await ask("Git branch for publishing", "main");
-  const contentDomain = await ask("Content domain (e.g. travel, food, tech)", "blog");
-  const contentFormat = await ask("Content format (mdx / markdown)", "mdx");
-  const config = {
-    siteName,
-    siteUrl,
-    author,
-    authorLocation: authorLoc,
-    writingSample: "",
-    postsDir,
-    gscPagesCsv: "gsc_data/Seiten.csv",
-    gscQueriesCsv: "gsc_data/Suchanfragen.csv",
-    auditLogPath: ".seoflow/data/audit-log.json",
-    keywordCachePath: ".seoflow/data/keyword-cache.json",
-    destinationPattern: "/destinations/{country}",
-    contentFormat: contentFormat === "markdown" ? "markdown" : "mdx",
-    contentDomain,
-    tools: [
-      { keywords: ["budget", "cost", "how much", "cheap", "per day", "price"], path: "/tools/budget-calculator", anchor: "budget calculator" },
-      { keywords: ["packing", "what to bring", "luggage", "essentials"], path: "/tools/packing-checklist", anchor: "packing checklist" }
-    ],
-    bookings: [],
-    generation: {
-      defaultSchema: "Article",
-      defaultCategory: contentDomain,
-      wordCountMin: 1500,
-      wordCountMax: 2500
-    },
-    publishing: {
-      gitEmail: "noreply@seoflow.dev",
-      gitName: `${siteName} Publisher`,
-      branch,
-      baseUrl: `https://${siteUrl}`,
-      majorCities: []
+    if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("run.ts")) {
+      runPipeline2().catch((e) => {
+        console.error("Fatal:", e?.message || e, e?.stack?.split("\n").slice(0, 3).join("\n") || "");
+        process.exit(1);
+      });
     }
-  };
-  fs26.writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n");
-  console.log(`
-  \u2705 seoflow.config.json created`);
-  const dataDir = path26.join(cwd, ".seoflow", "data");
-  if (!fs26.existsSync(dataDir)) {
-    fs26.mkdirSync(dataDir, { recursive: true });
-    console.log("  \u2705 .seoflow/data/ created");
-  }
-  try {
-    const pkgPath = path26.join(cwd, "package.json");
-    if (fs26.existsSync(pkgPath)) {
-      const pkg = JSON.parse(fs26.readFileSync(pkgPath, "utf8"));
-      pkg.scripts = {
-        ...pkg.scripts,
-        seoflow: "npx tsx .seoflow/run.ts",
-        "seoflow:dry": "npx tsx .seoflow/run.ts --dry-run",
-        "seoflow:audit": "npx tsx .seoflow/run.ts audit",
-        "seoflow:generate": "npx tsx .seoflow/run.ts generate",
-        "seoflow:publish": "npx tsx .seoflow/run.ts publish"
-      };
-      fs26.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + "\n");
-      console.log("  \u2705 npm scripts added to package.json");
-    }
-  } catch {
-  }
-  try {
-    const gitignorePath = path26.join(cwd, ".gitignore");
-    if (fs26.existsSync(gitignorePath)) {
-      const content = fs26.readFileSync(gitignorePath, "utf8");
-      if (!content.includes(".seoflow/data/")) {
-        fs26.appendFileSync(gitignorePath, "\n# SeoFlow generated data\n.seoflow/data/\n");
-        console.log("  \u2705 Added .seoflow/data/ to .gitignore");
-      }
-    }
-  } catch {
-  }
-  console.log("\n  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500");
-  console.log("  Next steps:");
-  console.log("  1. Add API keys to .env.local (GEMINI_API_KEY, etc.)");
-  console.log("  2. Edit seoflow.config.json to configure your tools and triggers");
-  console.log("  3. Run: npm run seoflow:dry");
-  console.log("  4. Run: npx seoflow audit");
-  console.log("");
-}
-var init_init = __esm({
-  "lib/init.ts"() {
-    "use strict";
   }
 });
 
@@ -9193,116 +9249,95 @@ var HELP = `
 
   COMMANDS
     init                 Interactive config setup
-    run [--mode M]       Run pipeline (modes: all, meta, links, images,
-                         keywords, content, review, factcheck)
+    status               Pipeline state + GSC coverage + learning summary
+    audit [slug | URL]   Run pipeline on top posts, one post, or a live URL
+    learn                Show learning insights (step effectiveness)
+    learning export [f]  Export learning.json + gsc-baselines.json
+    learning import <f>  Import a learning bundle
     generate             Generate content from keywords/gaps
-    publish              Publish unpublished posts
+    publish [--go]       Publish unpublished posts
+    cluster <seed>       Semantic topic cluster plan
+    brief <keyword>      SEO content brief
+    orchestrate <slug>   Orchestrator-based pipeline (dependency resolution)
+    run <slug>           Alias for orchestrate
+    brain                Brain summary + vault stats + next actions
+    vault                Vault summary
     validate             Check config + environment
     extensions           List supported optional extensions
     extensions install <id>  Install an optional extension
     extensions status    Show installed extension state
 
-  FLAGS (run, generate, publish)
+  FLAGS (audit, generate, publish)
     --slug <slug>        Process only this post
     --dry-run            Preview without writing
     --limit <n>          Max posts to process (default 10)
-    --mode <name>        Pipeline mode (run only)
+    --mode <name>        Pipeline mode (audit only): meta|links|images|
+                         keywords|neuron|content|review|factcheck|schema|
+                         technical|quality|report|all
     --country <name>     Filter by country (generate only)
     --go                 Actually publish (publish only)
 
   EXAMPLES
     seoflow init
-    seoflow run
-    seoflow run --mode keywords --slug my-post
-    seoflow run --dry-run --limit 5
+    seoflow audit
+    seoflow audit my-post-slug
+    seoflow audit https://example.com
+    seoflow audit --mode keywords --slug my-post
+    seoflow audit --dry-run --limit 5
     seoflow generate --country germany --limit 3
     seoflow publish --go
+    seoflow cluster "best coffee in berlin"
+    seoflow brief "how to pack for europe"
+    seoflow brain
     seoflow validate
+
+  Quick test (zero config, zero API keys):
+    seoflow audit https://example.com
 `;
+var RUN_TS_VERBS = /* @__PURE__ */ new Set([
+  "status",
+  "audit",
+  "learn",
+  "learning",
+  "generate",
+  "publish",
+  "cluster",
+  "brief",
+  "orchestrate",
+  "run",
+  "brain",
+  "vault",
+  "validate",
+  // Legacy flag-based invocation: seoflow --dry-run, seoflow --mode meta
+  "--dry-run",
+  "--mode",
+  "--slug",
+  "--limit",
+  "--reset-slug"
+]);
 async function main() {
   if (!command || command === "--help" || command === "-h") {
     console.log(HELP);
     return;
   }
-  switch (command) {
-    case "init":
-      await runInit();
-      break;
-    case "run":
-      const { runPipeline: runPipeline3 } = await Promise.resolve().then(() => (init_run(), run_exports));
-      process.argv = [node, script, ...rest];
-      await runPipeline3();
-      break;
-    case "generate":
-      await runGenerate(rest);
-      break;
-    case "publish":
-      await runPublish(rest);
-      break;
-    case "validate":
-      await runValidate();
-      break;
-    case "extensions":
-      await runExtensions(rest);
-      break;
-    default:
-      console.error(`Unknown command: ${command}`);
-      console.log(HELP);
-      process.exit(1);
-  }
-}
-async function runInit() {
-  const { interactiveInit: interactiveInit2 } = await Promise.resolve().then(() => (init_init(), init_exports));
-  await interactiveInit2();
-}
-async function runGenerate(args) {
-  const { loadEnv: loadEnv2 } = await Promise.resolve().then(() => (init_env_loader(), env_loader_exports));
-  const { loadConfig: loadConfig2, getPostsDir: getPostsDir2 } = await Promise.resolve().then(() => (init_config(), config_exports));
-  loadEnv2();
-  const cfg = loadConfig2();
-  const limitIdx = args.indexOf("--limit");
-  const limit = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) || 5 : 5;
-  const countryIdx = args.indexOf("--country");
-  const country = countryIdx !== -1 ? args[countryIdx + 1] : null;
-  const slugIdx = args.indexOf("--slug");
-  const slug = slugIdx !== -1 ? args[slugIdx + 1] : null;
-  const gaps = [
-    { keyword: slug || "top things to do", type: "things-to-do", destination: country || "", country: country || "" }
-  ];
-  const { generateBatch: generateBatch2 } = await Promise.resolve().then(() => (init_generator(), generator_exports));
-  const results = await generateBatch2(gaps, limit);
-  console.log(`
-Generated ${results.length} posts in ${getPostsDir2()}`);
-}
-async function runPublish(args) {
-  const { loadEnv: loadEnv2 } = await Promise.resolve().then(() => (init_env_loader(), env_loader_exports));
-  const { loadConfig: loadConfig2 } = await Promise.resolve().then(() => (init_config(), config_exports));
-  loadEnv2();
-  const cfg = loadConfig2();
-  const goFlag = args.includes("--go");
-  if (!goFlag) console.log("\u26A0\uFE0F  Dry run mode. Use --go to publish.");
-  const { scanCandidates: scanCandidates2, publishBatch: publishBatch2 } = await Promise.resolve().then(() => (init_publisher(), publisher_exports));
-  const slugIdx = args.indexOf("--slug");
-  const slug = slugIdx !== -1 ? args[slugIdx + 1] : void 0;
-  const limitIdx = args.indexOf("--limit");
-  const limit = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) || 10 : 10;
-  const candidates = scanCandidates2({ slug, limit });
-  if (candidates.length === 0) {
-    console.log("No unpublished posts");
+  if (command === "init") {
+    const { interactiveInit: interactiveInit2 } = await Promise.resolve().then(() => (init_init(), init_exports));
+    await interactiveInit2();
     return;
   }
-  console.log(`Found ${candidates.length} unpublished posts`);
-  for (const c of candidates) console.log(`  ${c.slug}`);
-  const result = publishBatch2(candidates, !goFlag);
-  console.log(`Published: ${result.published}, Errors: ${result.errors.length}`);
-}
-async function runValidate() {
-  const { loadEnv: loadEnv2 } = await Promise.resolve().then(() => (init_env_loader(), env_loader_exports));
-  const { loadConfig: loadConfig2 } = await Promise.resolve().then(() => (init_config(), config_exports));
-  const { printValidation: printValidation2 } = await Promise.resolve().then(() => (init_validator(), validator_exports));
-  loadEnv2();
-  const cfg = loadConfig2();
-  printValidation2(cfg);
+  if (command === "extensions") {
+    await runExtensions(rest);
+    return;
+  }
+  if (RUN_TS_VERBS.has(command) || command.startsWith("--")) {
+    process.argv = [node, script, ...[command, ...rest].filter(Boolean)];
+    const { runPipeline: runPipeline3 } = await Promise.resolve().then(() => (init_run(), run_exports));
+    await runPipeline3();
+    return;
+  }
+  console.error(`Unknown command: ${command}`);
+  console.log(HELP);
+  process.exit(1);
 }
 async function runExtensions(args) {
   const { formatExtensionStatus: formatExtensionStatus2, getSupportedExtensions: getSupportedExtensions2, installExtension: installExtension2, getExtensionState: getExtensionState2 } = await Promise.resolve().then(() => (init_extensions(), extensions_exports));
@@ -9340,7 +9375,7 @@ async function runExtensions(args) {
   }
 }
 main().catch((e) => {
-  console.error("Fatal:", e.message);
+  console.error("Fatal:", e?.message || e);
   process.exit(1);
 });
 //# sourceMappingURL=cli.js.map

@@ -720,4 +720,9 @@ export async function runPipeline(): Promise<void> {
   }
 }
 
-runPipeline().catch((e: Error) => { console.error('Fatal:', e?.message || e, e?.stack?.split('\n').slice(0,3).join('\n') || ''); process.exit(1); });
+// Only auto-run when this file is the direct entry point (not when imported by bin/cli.ts).
+// The CLI imports runPipeline() and calls it itself — without this guard, the pipeline
+// would run twice (once from this auto-invoke, once from the CLI's explicit call).
+if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('run.ts')) {
+  runPipeline().catch((e: Error) => { console.error('Fatal:', e?.message || e, e?.stack?.split('\n').slice(0,3).join('\n') || ''); process.exit(1); });
+}

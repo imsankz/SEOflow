@@ -4577,14 +4577,40 @@ var init_ubersuggest_client = __esm({
 });
 
 // lib/semrush-client.ts
+function getDatabase() {
+  return process.env.SEMRUSH_DATABASE || process.env.SEOFLOW_DATABASE || "us";
+}
+function parseSemrushCsv(text) {
+  const lines = text.trim().split("\n");
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(";").map((h) => h.trim());
+  return lines.slice(1).map((line) => {
+    const values = line.split(";");
+    const obj = { _raw: line };
+    headers.forEach((h, i) => {
+      obj[h] = (values[i] || "").trim();
+    });
+    return obj;
+  });
+}
+function rowToKeyword(row) {
+  const cleanKd = Number(String(row["Kd"] || "0").replace(/\+$/, "").trim());
+  return {
+    keyword: String(row["Ph"] || row["Phrase"] || ""),
+    searchVolume: Number(row["Nq"] || 0),
+    difficulty: cleanKd,
+    cpc: Number(row["Cp"] || 0),
+    competition: Number(row["Co"] || 0)
+  };
+}
 async function researchKeywords2(seed, context = "") {
   return SEMrushClient.researchKeywords(seed, context);
 }
-var SEMrushClient;
+var SEMRUSH_API, SEMrushClient;
 var init_semrush_client = __esm({
   "lib/semrush-client.ts"() {
     "use strict";
-    init_python_manager();
+    SEMRUSH_API = "https://api.semrush.com/";
     SEMrushClient = class {
       /**
        * Check if SEMrush API key is available
@@ -4593,41 +4619,69 @@ var init_semrush_client = __esm({
         return !!process.env.SEMRUSH_API_KEY;
       }
       /**
-       * Research keywords using SEMrush
+       * Research keywords using SEMrush API.
+       * Fetches metrics for the seed + related keyword ideas.
        */
       static async researchKeywords(seed, context = "") {
+        if (!this.hasKey()) {
+          return this.fallbackResearch(seed);
+        }
         try {
-          if (!this.hasKey()) {
-            return this.fallbackResearch(seed);
-          }
-          if (!PythonManager.isPythonAvailable()) {
-            return this.fallbackResearch(seed);
-          }
-          const result = PythonManager.run({
-            scriptName: "semrush_keywords",
-            args: [
-              `--seed "${this.escapeQuotes(seed)}"`,
-              `--context "${this.escapeQuotes(context)}"`,
-              `--api-key "${process.env.SEMRUSH_API_KEY}"`,
-              "--json"
-            ],
-            timeout: 6e4
+          const key = process.env.SEMRUSH_API_KEY;
+          const database = getDatabase();
+          const exportColumns = "Ph,Nq,Cp,Kd,Co";
+          const overviewParams = new URLSearchParams();
+          overviewParams.set("type", "phrase_this");
+          overviewParams.set("key", key);
+          overviewParams.set("phrase", seed);
+          overviewParams.set("export_columns", exportColumns);
+          overviewParams.set("database", database);
+          const overviewResp = await fetch(`${SEMRUSH_API}?${overviewParams.toString()}`, {
+            headers: { "Accept": "text/csv" }
           });
-          if (result.code === 0) {
-            const data = JSON.parse(result.stdout);
-            return {
-              focusKeyword: data.focusKeyword || seed,
-              searchVolume: data.searchVolume || 0,
-              difficulty: data.difficulty || 0,
-              relatedKeywords: data.relatedKeywords || [],
-              source: "semrush"
-            };
-          } else {
-            console.error("SEMrush research failed:", result.stderr);
+          const overviewText = await overviewResp.text();
+          if (overviewText.startsWith("ERROR")) {
+            console.error(`SEMrush phrase_this failed: ${overviewText.split("\n")[0]}`);
             return this.fallbackResearch(seed);
           }
+          const overviewRows = parseSemrushCsv(overviewText);
+          const seedData = overviewRows[0] ? rowToKeyword(overviewRows[0]) : null;
+          const relatedParams = new URLSearchParams();
+          relatedParams.set("type", "phrase_related");
+          relatedParams.set("key", key);
+          relatedParams.set("phrase", seed);
+          relatedParams.set("export_columns", exportColumns);
+          relatedParams.set("display_limit", "10");
+          relatedParams.set("database", database);
+          const relatedResp = await fetch(`${SEMRUSH_API}?${relatedParams.toString()}`, {
+            headers: { "Accept": "text/csv" }
+          });
+          const relatedText = await relatedResp.text();
+          let relatedKeywords = [];
+          if (!relatedText.startsWith("ERROR")) {
+            const relatedRows = parseSemrushCsv(relatedText);
+            relatedKeywords = relatedRows.map(rowToKeyword).filter((kw) => kw.keyword && kw.keyword !== seed).slice(0, 10);
+          } else {
+            console.error(`SEMrush phrase_related failed: ${relatedText.split("\n")[0]}`);
+          }
+          if (!seedData) {
+            return {
+              focusKeyword: seed,
+              searchVolume: 0,
+              difficulty: 0,
+              relatedKeywords,
+              source: relatedKeywords.length > 0 ? "semrush" : "fallback"
+            };
+          }
+          return {
+            focusKeyword: seedData.keyword,
+            searchVolume: seedData.searchVolume,
+            difficulty: seedData.difficulty,
+            relatedKeywords,
+            source: "semrush"
+          };
         } catch (error) {
-          console.error("SEMrush research error:", error.message);
+          console.error("SEMrush research error:", error?.message);
           return this.fallbackResearch(seed);
         }
       }
@@ -4643,25 +4697,34 @@ var init_semrush_client = __esm({
           source: "fallback"
         };
       }
-      /**
-       * Escape quotes for shell command
-       */
-      static escapeQuotes(text) {
-        return text.replace(/"/g, '\\"').replace(/\n/g, "\\n");
-      }
     };
   }
 });
 
 // lib/ahrefs-client.ts
+function getCountry() {
+  return process.env.AHREFS_COUNTRY || process.env.SEOFLOW_COUNTRY || "us";
+}
+function parseAhrefsKeyword(kw) {
+  return {
+    keyword: String(kw.keyword || ""),
+    searchVolume: Number(kw.volume ?? 0),
+    difficulty: Number(kw.difficulty ?? 0),
+    cpc: Number(kw.cpc ?? 0),
+    competition: 0,
+    // not directly returned by Ahrefs
+    traffic: Number(kw.clicks ?? 0),
+    globalVolume: Number(kw.volume ?? 0)
+  };
+}
 async function researchKeywords3(seed, context = "") {
   return AhrefsClient.researchKeywords(seed, context);
 }
-var AhrefsClient;
+var AHREFS_BASE, AhrefsClient;
 var init_ahrefs_client = __esm({
   "lib/ahrefs-client.ts"() {
     "use strict";
-    init_python_manager();
+    AHREFS_BASE = "https://api.ahrefs.com/v3";
     AhrefsClient = class {
       /**
        * Check if Ahrefs API key is available
@@ -4670,42 +4733,60 @@ var init_ahrefs_client = __esm({
         return !!process.env.AHREFS_API_KEY;
       }
       /**
-       * Research keywords using Ahrefs
+       * Research keywords using Ahrefs v3 API.
+       * Fetches metrics for the seed + matching terms for related keywords.
        */
       static async researchKeywords(seed, context = "") {
+        if (!this.hasKey()) {
+          return this.fallbackResearch(seed);
+        }
         try {
-          if (!this.hasKey()) {
+          const token = process.env.AHREFS_API_KEY;
+          const country = getCountry();
+          const headers = {
+            "Authorization": `Bearer ${token}`,
+            "Accept": "application/json"
+          };
+          const overviewUrl = new URL(`${AHREFS_BASE}/keywords-explorer/overview`);
+          const params = overviewUrl.searchParams;
+          params.set("keywords", seed);
+          params.set("country", country);
+          params.set("select", "keyword,volume,difficulty,cpc,clicks,cps");
+          params.set("output", "json");
+          const overviewResp = await fetch(overviewUrl.toString(), { headers });
+          if (!overviewResp.ok) {
+            const text = await overviewResp.text().catch(() => "");
+            console.error(`Ahrefs overview failed: ${overviewResp.status} ${overviewResp.statusText}`, text.slice(0, 200));
             return this.fallbackResearch(seed);
           }
-          if (!PythonManager.isPythonAvailable()) {
-            console.error("AHREFS_API_KEY is set but Python is not available \u2014 cannot run ahrefs_keywords script");
-            return this.fallbackResearch(seed);
-          }
-          const result = PythonManager.run({
-            scriptName: "ahrefs_keywords",
-            args: [
-              `--seed "${this.escapeQuotes(seed)}"`,
-              `--context "${this.escapeQuotes(context)}"`,
-              `--api-key "${process.env.AHREFS_API_KEY}"`,
-              "--json"
-            ],
-            timeout: 6e4
-          });
-          if (result.code === 0) {
-            const data = JSON.parse(result.stdout);
-            return {
-              focusKeyword: data.focusKeyword || seed,
-              searchVolume: data.searchVolume || 0,
-              difficulty: data.difficulty || 0,
-              relatedKeywords: data.relatedKeywords || [],
-              source: "ahrefs"
-            };
+          const overview = await overviewResp.json();
+          const seedData = overview.keywords?.[0] ?? {};
+          const matchingUrl = new URL(`${AHREFS_BASE}/keywords-explorer/matching-terms`);
+          const mParams = matchingUrl.searchParams;
+          mParams.set("keyword", seed);
+          mParams.set("country", country);
+          mParams.set("select", "keyword,volume,difficulty,cpc,clicks,cps");
+          mParams.set("limit", "10");
+          mParams.set("output", "json");
+          const matchingResp = await fetch(matchingUrl.toString(), { headers });
+          let relatedKeywords = [];
+          if (matchingResp.ok) {
+            const matching = await matchingResp.json();
+            if (Array.isArray(matching.keywords)) {
+              relatedKeywords = matching.keywords.filter((k) => k.keyword && k.keyword !== seed).slice(0, 10).map((k) => parseAhrefsKeyword(k));
+            }
           } else {
-            console.error("Ahrefs research failed:", result.stderr);
-            return this.fallbackResearch(seed);
+            console.error(`Ahrefs matching-terms failed: ${matchingResp.status} \u2014 continuing without related keywords`);
           }
+          return {
+            focusKeyword: String(seedData.keyword ?? seed),
+            searchVolume: Number(seedData.volume ?? 0),
+            difficulty: Number(seedData.difficulty ?? 0),
+            relatedKeywords,
+            source: "ahrefs"
+          };
         } catch (error) {
-          console.error("Ahrefs research error:", error.message);
+          console.error("Ahrefs research error:", error?.message);
           return this.fallbackResearch(seed);
         }
       }
@@ -4720,12 +4801,6 @@ var init_ahrefs_client = __esm({
           relatedKeywords: [],
           source: "fallback"
         };
-      }
-      /**
-       * Escape quotes for shell command
-       */
-      static escapeQuotes(text) {
-        return text.replace(/"/g, '\\"').replace(/\n/g, "\\n");
       }
     };
   }
@@ -8996,10 +9071,12 @@ ${"\u2550".repeat(60)}`);
     });
   }
 }
-runPipeline2().catch((e) => {
-  console.error("Fatal:", e?.message || e, e?.stack?.split("\n").slice(0, 3).join("\n") || "");
-  process.exit(1);
-});
+if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("run.ts")) {
+  runPipeline2().catch((e) => {
+    console.error("Fatal:", e?.message || e, e?.stack?.split("\n").slice(0, 3).join("\n") || "");
+    process.exit(1);
+  });
+}
 export {
   runPipeline2 as runPipeline
 };

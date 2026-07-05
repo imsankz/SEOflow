@@ -2,13 +2,27 @@
 /**
  * SeoFlow CLI — entry point for the npm package.
  *
+ * Routes every verb through the single dispatcher in run.ts so the
+ * published CLI stays in sync with the dev CLI (`npx tsx run.ts <verb>`).
+ *
  * Usage:
- *   seoflow init              Interactive config setup
- *   seoflow run [flags]       Run pipeline (same flags as run.ts)
- *   seoflow generate [flags]  Generate content from keywords
- *   seoflow publish [flags]   Publish unpublished posts
- *   seoflow validate          Validate config + env
- *   seoflow --help            Show help
+ *   seoflow init                       Interactive config setup
+ *   seoflow status                     Pipeline state + learning summary
+ *   seoflow audit [slug | URL]         Run pipeline (or one post / live URL)
+ *   seoflow learn                      Show learning insights
+ *   seoflow learning export [file]     Export learning bundle
+ *   seoflow learning import <file>     Import learning bundle
+ *   seoflow generate [flags]           Generate content from keywords/gaps
+ *   seoflow publish [--go]             Publish unpublished posts
+ *   seoflow cluster <seed>             Semantic topic cluster plan
+ *   seoflow brief <keyword>            SEO content brief
+ *   seoflow orchestrate <slug>         Orchestrator-based pipeline
+ *   seoflow run <slug>                 Alias for orchestrate
+ *   seoflow brain                      Brain summary + vault stats
+ *   seoflow vault                      Vault summary
+ *   seoflow validate                   Check config + environment
+ *   seoflow extensions [install|status]  Manage optional extensions
+ *   seoflow --help                     Show help
  */
 
 const [node, script, command, ...rest] = process.argv;
@@ -21,32 +35,61 @@ const HELP = `
 
   COMMANDS
     init                 Interactive config setup
-    run [--mode M]       Run pipeline (modes: all, meta, links, images,
-                         keywords, content, review, factcheck)
+    status               Pipeline state + GSC coverage + learning summary
+    audit [slug | URL]   Run pipeline on top posts, one post, or a live URL
+    learn                Show learning insights (step effectiveness)
+    learning export [f]  Export learning.json + gsc-baselines.json
+    learning import <f>  Import a learning bundle
     generate             Generate content from keywords/gaps
-    publish              Publish unpublished posts
+    publish [--go]       Publish unpublished posts
+    cluster <seed>       Semantic topic cluster plan
+    brief <keyword>      SEO content brief
+    orchestrate <slug>   Orchestrator-based pipeline (dependency resolution)
+    run <slug>           Alias for orchestrate
+    brain                Brain summary + vault stats + next actions
+    vault                Vault summary
     validate             Check config + environment
     extensions           List supported optional extensions
     extensions install <id>  Install an optional extension
     extensions status    Show installed extension state
 
-  FLAGS (run, generate, publish)
+  FLAGS (audit, generate, publish)
     --slug <slug>        Process only this post
     --dry-run            Preview without writing
     --limit <n>          Max posts to process (default 10)
-    --mode <name>        Pipeline mode (run only)
+    --mode <name>        Pipeline mode (audit only): meta|links|images|
+                         keywords|neuron|content|review|factcheck|schema|
+                         technical|quality|report|all
     --country <name>     Filter by country (generate only)
     --go                 Actually publish (publish only)
 
   EXAMPLES
     seoflow init
-    seoflow run
-    seoflow run --mode keywords --slug my-post
-    seoflow run --dry-run --limit 5
+    seoflow audit
+    seoflow audit my-post-slug
+    seoflow audit https://example.com
+    seoflow audit --mode keywords --slug my-post
+    seoflow audit --dry-run --limit 5
     seoflow generate --country germany --limit 3
     seoflow publish --go
+    seoflow cluster "best coffee in berlin"
+    seoflow brief "how to pack for europe"
+    seoflow brain
     seoflow validate
+
+  Quick test (zero config, zero API keys):
+    seoflow audit https://example.com
 `;
+
+// Commands that run.ts owns. Everything not in the special-case set
+// below is forwarded to run.ts by rewriting process.argv.
+const RUN_TS_VERBS = new Set([
+  'status', 'audit', 'learn', 'learning', 'generate', 'publish',
+  'cluster', 'brief', 'orchestrate', 'run',
+  'brain', 'vault', 'validate',
+  // Legacy flag-based invocation: seoflow --dry-run, seoflow --mode meta
+  '--dry-run', '--mode', '--slug', '--limit', '--reset-slug',
+]);
 
 async function main() {
   if (!command || command === '--help' || command === '-h') {
@@ -54,88 +97,31 @@ async function main() {
     return;
   }
 
-  switch (command) {
-    case 'init':
-      await runInit();
-      break;
-    case 'run':
-      const { runPipeline } = await import('../run');
-      // run.ts reads from process.argv, which includes the full original args
-      // We need to strip the leading node/script and 'run' but keep flags
-      process.argv = [node, script, ...rest];
-      await runPipeline();
-      break;
-    case 'generate':
-      await runGenerate(rest);
-      break;
-    case 'publish':
-      await runPublish(rest);
-      break;
-    case 'validate':
-      await runValidate();
-      break;
-    case 'extensions':
-      await runExtensions(rest);
-      break;
-    default:
-      console.error(`Unknown command: ${command}`);
-      console.log(HELP);
-      process.exit(1);
+  // init: no config needed, handled locally
+  if (command === 'init') {
+    const { interactiveInit } = await import('../lib/init');
+    await interactiveInit();
+    return;
   }
-}
 
-async function runInit() {
-  const { interactiveInit } = await import('../lib/init');
-  await interactiveInit();
-}
+  // extensions: no config needed, handled locally
+  if (command === 'extensions') {
+    await runExtensions(rest);
+    return;
+  }
 
-async function runGenerate(args: string[]) {
-  const { loadEnv } = await import('../lib/env-loader');
-  const { loadConfig, getPostsDir } = await import('../lib/config');
-  loadEnv();
-  const cfg = loadConfig();
-  const limitIdx = args.indexOf('--limit');
-  const limit = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) || 5 : 5;
-  const countryIdx = args.indexOf('--country');
-  const country = countryIdx !== -1 ? args[countryIdx + 1] : null;
-  const slugIdx = args.indexOf('--slug');
-  const slug = slugIdx !== -1 ? args[slugIdx + 1] : null;
+  // Everything else → forward to run.ts.
+  // run.ts reads process.argv and expects the verb as argv[2].
+  if (RUN_TS_VERBS.has(command) || command.startsWith('--')) {
+    process.argv = [node, script, ...[command, ...rest].filter(Boolean)];
+    const { runPipeline } = await import('../run');
+    await runPipeline();
+    return;
+  }
 
-  const gaps = [
-    { keyword: slug || 'top things to do', type: 'things-to-do' as const, destination: country || '', country: country || '' },
-  ];
-  const { generateBatch } = await import('../lib/generator');
-  const results = await generateBatch(gaps, limit);
-  console.log(`\nGenerated ${results.length} posts in ${getPostsDir()}`);
-}
-
-async function runPublish(args: string[]) {
-  const { loadEnv } = await import('../lib/env-loader');
-  const { loadConfig } = await import('../lib/config');
-  loadEnv();
-  const cfg = loadConfig();
-  const goFlag = args.includes('--go');
-  if (!goFlag) console.log('⚠️  Dry run mode. Use --go to publish.');
-  const { scanCandidates, publishBatch } = await import('../lib/publisher');
-  const slugIdx = args.indexOf('--slug');
-  const slug = slugIdx !== -1 ? args[slugIdx + 1] : undefined;
-  const limitIdx = args.indexOf('--limit');
-  const limit = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) || 10 : 10;
-  const candidates = scanCandidates({ slug, limit });
-  if (candidates.length === 0) { console.log('No unpublished posts'); return; }
-  console.log(`Found ${candidates.length} unpublished posts`);
-  for (const c of candidates) console.log(`  ${c.slug}`);
-  const result = publishBatch(candidates, !goFlag);
-  console.log(`Published: ${result.published}, Errors: ${result.errors.length}`);
-}
-
-async function runValidate() {
-  const { loadEnv } = await import('../lib/env-loader');
-  const { loadConfig } = await import('../lib/config');
-  const { printValidation } = await import('../lib/validator');
-  loadEnv();
-  const cfg = loadConfig();
-  printValidation(cfg);
+  console.error(`Unknown command: ${command}`);
+  console.log(HELP);
+  process.exit(1);
 }
 
 async function runExtensions(args: string[]) {
@@ -178,6 +164,6 @@ async function runExtensions(args: string[]) {
 }
 
 main().catch(e => {
-  console.error('Fatal:', e.message);
+  console.error('Fatal:', e?.message || e);
   process.exit(1);
 });

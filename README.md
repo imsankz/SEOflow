@@ -371,11 +371,12 @@ seoflow/
 
 - Node 18+
 - `GEMINI_API_KEY` or `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY` (at least one for AI steps)
-- Optional: `SEMRUSH_API_KEY` or `AHREFS_API_KEY` (keyword research)
+- Optional: `SEMRUSH_API_KEY` (keyword research — direct API calls via `phrase_this` + `phrase_related`)
+- Optional: `AHREFS_API_KEY` (keyword research — direct API calls via v3 keywords-explorer)
 - Optional: `NEURONWRITER_API_KEY`, `NEURONWRITER_PROJECT_ID`
 - Optional: `PEXELS_API_KEY` or `UNSPLASH_API_KEY`
 - Optional: Ubersuggest MCP (for keyword research)
-
+- Optional: `AHREFS_COUNTRY` / `SEMRUSH_DATABASE` / `SEOFLOW_COUNTRY` — override default region (`us`)
 Without any keys, SeoFlow still works — it skips AI/data steps gracefully and runs the URL auditor on raw signals.
 
 ---
