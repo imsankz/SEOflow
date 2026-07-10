@@ -5,11 +5,11 @@
  */
 import type { LLMChatInput, LLMChatResult, LLMProvider, ProviderAvailability } from './types';
 
-const GEMINI_MODEL = 'gemini-3.5-flash';
+const GEMINI_MODEL = 'gemini-2.5-flash';
 
 export const geminiProvider: LLMProvider = {
   id: 'gemini',
-  name: 'Gemini 3.5 Flash (Google)',
+  name: 'Gemini 2.5 Flash (Google)',
   authMode: 'api-key',
 
   async availability(): Promise<ProviderAvailability> {
