@@ -9,3 +9,7 @@ dist/
 opencode.json
 *.bak
 .DS_Store
+brain/
+reports/
+__pycache__/
+*.pyc
