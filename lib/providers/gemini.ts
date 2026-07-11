@@ -5,7 +5,7 @@
  */
 import type { LLMChatInput, LLMChatResult, LLMProvider, ProviderAvailability } from './types';
 
-const GEMINI_MODEL = 'gemini-2.5-flash';
+const GEMINI_MODEL = 'gemini-3.5-flash';
 
 export const geminiProvider: LLMProvider = {
   id: 'gemini',

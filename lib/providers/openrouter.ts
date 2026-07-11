@@ -34,7 +34,7 @@ export const openrouterProvider: LLMProvider = {
       siteName = (loadConfig() as any).siteName;
     } catch { /* config not loaded */ }
 
-    const model = input.model ?? 'google/gemini-2.5-flash-001';
+    const model = input.model ?? 'google/gemini-3.5-flash';
 
     try {
       const controller = new AbortController();

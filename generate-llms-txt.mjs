@@ -124,7 +124,7 @@ function scaffoldRoute(info, isFull) {
 
   sections.push("    '## Core Pages',");
   sections.push("    ''");
-  sections.push("    `- [Home](${siteUrl}/)`,");
+  sections.push(`    \`- [Home](${info.url}/)\`,`);
   sections.push("    ''");
 
   if (info.imports.some((i) => i.includes('services'))) {
