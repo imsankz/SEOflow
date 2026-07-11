@@ -1258,7 +1258,7 @@ var init_openrouter = __esm({
           siteName = loadConfig().siteName;
         } catch {
         }
-        const model = input.model ?? "google/gemini-2.5-flash-001";
+        const model = input.model ?? "google/gemini-3.5-flash";
         try {
           const controller = new AbortController();
           const timer = setTimeout(() => controller.abort(), input.timeoutMs ?? 12e4);
@@ -1306,7 +1306,7 @@ var GEMINI_MODEL, geminiProvider;
 var init_gemini = __esm({
   "lib/providers/gemini.ts"() {
     "use strict";
-    GEMINI_MODEL = "gemini-2.5-flash";
+    GEMINI_MODEL = "gemini-3.5-flash";
     geminiProvider = {
       id: "gemini",
       name: "Gemini 2.5 Flash (Google)",
