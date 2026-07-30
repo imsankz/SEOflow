@@ -2,6 +2,17 @@
 
 All notable changes to SeoFlow will be documented in this file.
 
+## [0.2.0] — 2026-07-30
+
+### Added
+- **Rich content-type templates** — 12 type-specific H2 outlines for `seoflow generate` (city-pass-review, city-itinerary-3d/week, things-to-do, where-to-stay, best-restaurants, day-trips, budget-guide, country-guide, country-itinerary, transportation, getting-around, guide/itinerary/article)
+- **Gap-queue-aware generation** — `seoflow generate` with no `--slug`/`--country` auto-picks the next unwritten topic from a configurable `gapQueuePath` (`{aiPrioritised, allGaps}` JSON), ordered by priority then content-type ROI
+- **Auto post-processing after generate** — new posts automatically run the full audit pipeline (links, affiliates, images, content, review, schema, quality, technical, fact-check) plus reciprocal inbound linking, unless `--no-audit`
+- **Affiliate link injection** — `config.affiliates` (same keyword-trigger shape as `tools`/`bookings`), capped at 3 per post, new `inject-affiliates` step
+- **Reciprocal internal linking** — new `stepInjectReciprocalLinks` edits 2-4 existing topically-related posts to link back to a newly generated post (the inbound half of two-way linking; `inject-links` was outbound-only)
+- **ImageKit CDN upload** — optional `config.imageKit`; when set, Pexels/Unsplash images are downloaded and re-uploaded to your own CDN instead of hotlinked
+- `--destination` and `--no-audit` flags for `seoflow generate`
+
 ## [0.1.0] — 2026-07-05 (open-source launch)
 
 ### Added

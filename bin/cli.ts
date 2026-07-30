@@ -61,6 +61,8 @@ const HELP = `
                          keywords|neuron|content|review|factcheck|schema|
                          technical|quality|report|all
     --country <name>     Filter by country (generate only)
+    --destination <name> Filter by destination/city (generate only)
+    --no-audit           Skip auto post-processing after generate
     --go                 Actually publish (publish only)
 
   EXAMPLES
@@ -70,7 +72,9 @@ const HELP = `
     seoflow audit https://example.com
     seoflow audit --mode keywords --slug my-post
     seoflow audit --dry-run --limit 5
+    seoflow generate                         (auto-picks from data/content-gaps.json)
     seoflow generate --country germany --limit 3
+    seoflow generate --destination prague --no-audit
     seoflow publish --go
     seoflow cluster "best coffee in berlin"
     seoflow brief "how to pack for europe"

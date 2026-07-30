@@ -58,6 +58,22 @@
     { "keywords": ["ferry", "boat trip", "cruise"], "path": "/book", "anchor": "book tickets" }
   ],
 
+  "_affiliates_note": "Optional — injected by `seoflow generate`/`audit`, max 3 per post, only where the keyword already appears naturally",
+  "affiliates": [
+    { "category": "hotels", "keywords": ["hotel", "accommodation", "where to stay"], "url": "https://example.com/affiliate-hotels", "anchor": "book hotels" },
+    { "category": "car-rental", "keywords": ["car rental", "rent a car", "driving"], "url": "https://example.com/affiliate-cars", "anchor": "compare car rental prices" }
+  ],
+
+  "_gapQueue_note": "Path to a content-gap queue JSON. `seoflow generate` (no --slug/--country) auto-picks the next unwritten gap from here.",
+  "gapQueuePath": "data/content-gaps.json",
+
+  "_imageKit_note": "Optional — when set, images get re-uploaded to your ImageKit CDN instead of hotlinking Pexels/Unsplash. Set the private key via the env var named below.",
+  "imageKit": {
+    "id": "your_imagekit_id",
+    "folder": "/blog",
+    "privateKeyEnv": "IMAGEKIT_PRIVATE_KEY"
+  },
+
   "generation": {
     "defaultSchema": "TravelGuide",
     "defaultCategory": "travel",

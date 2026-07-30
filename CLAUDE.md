@@ -49,7 +49,7 @@ npm run install:repo
 | `seoflow learn` | Show learning insights (step effectiveness, content patterns) |
 | `seoflow learning export [file]` | Export `learning.json` + `gsc-baselines.json` |
 | `seoflow learning import <file>` | Import a learning bundle (share across machines) |
-| `seoflow generate` | Generate new posts from keywords |
+| `seoflow generate` | Generate new posts — auto-picks from the gap queue (`gapQueuePath` in config) if no `--slug`/`--country` given, then auto-runs the full post-processing pipeline (links, affiliates, images, content, schema, quality, factcheck, reciprocal inbound links) unless `--no-audit` |
 | `seoflow publish` | Dry-run: preview unpublished posts |
 | `seoflow publish --go` | Actually publish top candidates |
 | `seoflow validate` | Check config + environment |
@@ -99,8 +99,8 @@ npx seoflow init
 
 1. **Keywords**: SEMrush (if API key) or Ubersuggest MCP → focusKeyword + related terms
 2. **Meta**: Schema, description length, focusKeyword, lastModified
-3. **Links**: Inject internal links from your configured triggers
-4. **Images**: Pexels/Unsplash fetch per H2 section (1 per section, max 2)
+3. **Links**: Inject internal links from your configured triggers, then affiliate links from `config.affiliates` (max 3, keyword-triggered)
+4. **Images**: Pexels/Unsplash fetch per H2 section (1 per section, max 2) — re-uploaded to ImageKit if `config.imageKit` is set
 5. **Neuron**: NeuronWriter NLP: target word count, missing terms, People Also Ask
 6. **Content**: Gemini 2.5 Flash: FAQ, thin section expansion, NLP term weaving
 7. **Review**: Claude-style SEO review: score (1-10), quick wins, auto-fix title/meta
@@ -108,7 +108,8 @@ npx seoflow init
 9. **Quality**: Content quality audit (E-E-A-T signals, readability)
 10. **Technical**: Technical SEO checks: broken links, redirect chains
 11. **FactCheck**: Price/claim verification via Google Search grounding
-12. **Report**: Export audit report (PDF format)
+12. **Reciprocal links** (`generate` flow only): edits 2-4 existing, topically related posts to link back to the new post
+13. **Report**: Export audit report (PDF format)
 
 ## MCP Servers
 

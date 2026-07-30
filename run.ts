@@ -70,7 +70,7 @@ const MODE = (() => {
   const modeArg = i !== -1 ? rawArgs[i + 1] : 'all';
 
   // Validate mode
-  const validModes = ['all', 'meta', 'links', 'images', 'keywords', 'neuron', 'content', 'review', 'factcheck', 'schema', 'technical', 'quality', 'report'];
+  const validModes = ['all', 'meta', 'links', 'affiliates', 'images', 'keywords', 'neuron', 'content', 'review', 'factcheck', 'schema', 'technical', 'quality', 'report', 'reciprocal-links'];
   return validModes.includes(modeArg) ? modeArg : 'all';
 })();
 
@@ -535,18 +535,51 @@ export async function runPipeline(): Promise<void> {
   // ── Generate mode ──────────────────────────────────────────────────────
   if (MODE === 'generate') {
     const country = (() => { const i = rawArgs.indexOf('--country'); return i !== -1 ? rawArgs[i + 1] : null; })();
-    if (!SLUG_FILTER && !country) {
-      console.log('   Provide --slug <keyword> or --country <name> to generate content');
-      console.log('   Example: seoflow generate --slug "best restaurants in prague" --country "Czech Republic"');
-      console.log('');
-      return;
+    const destination = (() => { const i = rawArgs.indexOf('--destination'); return i !== -1 ? rawArgs[i + 1] : null; })();
+    const noAudit = rawArgs.includes('--no-audit');
+
+    let gaps: ContentGap[] = [];
+    if (SLUG_FILTER || country) {
+      // Explicit single-topic request — keep old single-gap behaviour.
+      gaps = [
+        { keyword: SLUG_FILTER || 'top things to do', type: 'things-to-do', destination: country || '', country: country || '' },
+      ];
+    } else {
+      // No explicit target — pull from the configured gap queue, filtered
+      // by --destination/--country if given.
+      const { pickNextContentGaps } = await import('./lib/generator');
+      gaps = pickNextContentGaps(LIMIT, { destination: destination || undefined, country: country || undefined });
+      if (gaps.length === 0) {
+        console.log('   No gaps to generate. Provide --slug/--country, or populate the gap queue at:');
+        console.log(`   ${(await import('./lib/config')).getGapQueuePath()}`);
+        console.log('');
+        return;
+      }
+      console.log(`📋 Picked ${gaps.length} gap(s) from queue: ${gaps.map(g => g.slug).join(', ')}\n`);
     }
-    const gaps: ContentGap[] = [
-      { keyword: SLUG_FILTER || 'top things to do', type: 'things-to-do', destination: country || '', country: country || '' },
-    ];
+
     const results = await generateBatch(gaps, LIMIT);
     console.log(`\n✅ Generated ${results.length} posts in ${postsDir}`);
-    console.log(`   Run \`seoflow audit <slug>\` to optimize them.`);
+
+    if (results.length === 0) return;
+
+    if (noAudit) {
+      console.log(`   Run \`seoflow audit <slug>\` to optimize them, or \`seoflow generate\` again without --no-audit.`);
+      return;
+    }
+
+    // Auto-run the full post-processing pipeline on each new post: links,
+    // affiliates, images, neuron/content/review, schema, quality, technical,
+    // factcheck (mode 'all'), then the reciprocal inbound-linking pass.
+    console.log(`\n🔧 Post-processing ${results.length} new post(s)...`);
+    const { processPost } = await import('./pipeline/steps');
+    for (const post of results) {
+      await processPost(post.slug, post.filePath, gscPages, auditLog, { mode: 'all', dryRun: DRY_RUN });
+      await processPost(post.slug, post.filePath, gscPages, auditLog, { mode: 'reciprocal-links', dryRun: DRY_RUN });
+      saveAuditLog(auditLog, DRY_RUN);
+    }
+    console.log(`\n✅ Post-processing complete for: ${results.map(p => p.slug).join(', ')}`);
+    console.log(`   Review and set published: true when ready.`);
     return;
   }
 

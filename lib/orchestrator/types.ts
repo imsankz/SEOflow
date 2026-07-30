@@ -87,6 +87,7 @@ export const ALL_STEPS: StepDefinition[] = [
 
   // Diagnostic
   { id: 'inject-links', name: 'Internal Links', phase: 'diagnostic', dependsOn: ['fix-frontmatter'], requiresIntegrations: [] },
+  { id: 'inject-affiliates', name: 'Affiliate Links', phase: 'diagnostic', dependsOn: ['fix-frontmatter'], requiresIntegrations: [] },
   { id: 'inject-images', name: 'Image Injection', phase: 'diagnostic', dependsOn: ['fix-frontmatter'], requiresIntegrations: ['pexels', 'unsplash'] },
   { id: 'neuron-analysis', name: 'NeuronWriter NLP', phase: 'diagnostic', dependsOn: [], requiresIntegrations: ['neuronwriter'] },
 
@@ -101,5 +102,6 @@ export const ALL_STEPS: StepDefinition[] = [
   { id: 'fact-check', name: 'Fact Check', phase: 'synthesis', dependsOn: ['content-audit'], requiresIntegrations: ['gemini', 'openrouter', 'anthropic'] },
 
   // Final
+  { id: 'reciprocal-links', name: 'Reciprocal Internal Links', phase: 'final', dependsOn: ['fix-frontmatter'], requiresIntegrations: [] },
   { id: 'report-export', name: 'Report Export', phase: 'final', dependsOn: ['schema-validation', 'quality-audit', 'technical-audit', 'fact-check'], requiresIntegrations: [] },
 ];

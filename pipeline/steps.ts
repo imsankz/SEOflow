@@ -9,13 +9,14 @@ import path from 'node:path';
 import type { Frontmatter, GSCPageData, NeuronData, Section, StepInput, StepOutput, ToolTrigger, BookingTrigger } from '../lib/types';
 import { countWords, countInternalLinks, countImages, parseMdx, buildFrontmatterBlock, extractExistingLinks, getH2Sections, sectionNeedsImage } from '../lib/mdx-parser';
 import { fetchBestImage } from '../lib/pexels-client';
+import { hasImageKit, uploadToImageKit } from '../lib/imagekit-client';
 import { fetchNeuronData, hasNeuronKey } from '../lib/neuronwriter';
 import { aiChatWithRetry } from '../lib/ai-provider';
 import { logEntry, isAlreadyDone } from '../lib/audit-log';
 import { researchKeywords as ubersuggestResearch } from '../lib/ubersuggest-client';
 import { researchKeywords as semrushResearch } from '../lib/semrush-client';
 import { researchKeywords as ahrefsResearch } from '../lib/ahrefs-client';
-import { getToolTriggers, getBookingTriggers, getAiContext, getWritingSample, getImageSearchFallback, getDefaultCategory, getContentDomain, getSiteUrl, getPostsDir, loadConfig } from '../lib/config';
+import { getToolTriggers, getBookingTriggers, getAffiliateTriggers, getAiContext, getWritingSample, getImageSearchFallback, getDefaultCategory, getContentDomain, getSiteUrl, getPostsDir, loadConfig } from '../lib/config';
 import { resetAiCallCounter, getAiCallCount } from '../lib/ai-provider';
 import { checkGscDelta, recordStep, logRun } from '../lib/learning';
 import type { AuditLog } from '../lib/types';
@@ -39,8 +40,10 @@ function sanitizeLog(s: string | undefined | null): string {
 // Lazy-loaded trigger maps from site config
 let _toolTriggers: ToolTrigger[] | null = null;
 let _bookingTriggers: BookingTrigger[] | null = null;
+let _affiliateTriggers: ReturnType<typeof getAffiliateTriggers> | null = null;
 function toolTriggers(): ToolTrigger[] { if (!_toolTriggers) _toolTriggers = getToolTriggers(); return _toolTriggers; }
 function bookingTriggers(): BookingTrigger[] { if (!_bookingTriggers) _bookingTriggers = getBookingTriggers(); return _bookingTriggers; }
+function affiliateTriggers() { if (!_affiliateTriggers) _affiliateTriggers = getAffiliateTriggers(); return _affiliateTriggers; }
 
 // ─── Step 0: Keyword Research (Ubersuggest) ───────────────────────────────────
 /**
@@ -156,6 +159,116 @@ export function stepInjectLinks(input: StepInput): StepOutput {
   return { content: modified, frontmatter: input.frontmatter, changes };
 }
 
+// ─── Step 2b: Inject Affiliate Links ──────────────────────────────────────────
+/**
+ * Injects affiliate links from `config.affiliates` — same keyword-trigger
+ * shape as tools/bookings, capped at 3 per post so posts don't read as
+ * link farms. Only fires where the post already discusses the category
+ * naturally (keyword match), never force-inserted.
+ */
+export function stepInjectAffiliates(input: StepInput): StepOutput {
+  const changes: string[] = [];
+  let modified = input.content;
+  const existingLinks = extractExistingLinks(modified);
+  const affiliates = affiliateTriggers();
+  let linksAdded = 0;
+  const MAX_AFFILIATE_LINKS = 3;
+
+  for (const trigger of affiliates) {
+    if (linksAdded >= MAX_AFFILIATE_LINKS) break;
+    if (existingLinks.has(trigger.url)) continue;
+
+    for (const kw of trigger.keywords) {
+      const safeKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = new RegExp(`(?<!\\[.*?)\\b(${safeKw})\\b(?![^[]*?\\])(?![^(]*?\\))`, 'i');
+      const match = modified.match(pattern);
+      if (match) {
+        modified = modified.replace(pattern, `[$1](${trigger.url})`);
+        existingLinks.add(trigger.url);
+        changes.push(`Added affiliate link (${trigger.category || 'affiliate'}) to ${trigger.url} (anchor: "${match[1]}")`);
+        linksAdded++;
+        break;
+      }
+    }
+  }
+
+  return { content: modified, frontmatter: input.frontmatter, changes };
+}
+
+// ─── Step 2c: Reciprocal Internal Links (inbound) ─────────────────────────────
+/**
+ * After generating/auditing a post, find 2-4 existing, topically related
+ * posts (shared tag/destination, excluding self) that don't yet link to it,
+ * and edit those posts in place to add a link back. This is the inbound
+ * half of two-way internal linking — `stepInjectLinks` only handles outbound.
+ *
+ * Unlike other steps, this one writes side-effect changes to OTHER files;
+ * `input.content`/`input.frontmatter` for the current slug pass through
+ * unchanged.
+ */
+export function stepInjectReciprocalLinks(input: StepInput, opts: { dryRun?: boolean; maxEdits?: number } = {}): StepOutput {
+  const changes: string[] = [];
+  const maxEdits = opts.maxEdits ?? 3;
+  const postsDir = getPostsDir();
+  const mySlug = input.slug;
+  const myTags = (input.frontmatter.tags || []).map(t => String(t).toLowerCase());
+  const myTitle = input.frontmatter.title || mySlug;
+
+  if (myTags.length === 0 || !fs.existsSync(postsDir)) {
+    return { content: input.content, frontmatter: input.frontmatter, changes };
+  }
+
+  const candidateFiles = fs.readdirSync(postsDir)
+    .filter(f => (f.endsWith('.mdx') || f.endsWith('.md')) && f.replace(/\.mdx?$/, '') !== mySlug);
+
+  let edited = 0;
+
+  for (const file of candidateFiles) {
+    if (edited >= maxEdits) break;
+    const filePath = path.join(postsDir, file);
+    const otherSlug = file.replace(/\.mdx?$/, '');
+
+    let raw: string;
+    try {
+      raw = fs.readFileSync(filePath, 'utf8');
+    } catch {
+      continue;
+    }
+    const { frontmatter: otherFm, content: otherContent } = parseMdx(raw);
+    if (otherFm.published === false) continue;
+
+    const otherTags = (otherFm.tags || []).map((t: string) => String(t).toLowerCase());
+    const sharesTag = otherTags.some((t: string) => myTags.includes(t));
+    if (!sharesTag) continue;
+
+    const alreadyLinked = extractExistingLinks(otherContent).has(`/${mySlug}`) || otherContent.includes(`(/${mySlug})`);
+    if (alreadyLinked) continue;
+
+    const relatedHeading = '## Related Guides';
+    const linkLine = `- [${myTitle}](/${mySlug})`;
+    let newContent: string;
+
+    if (otherContent.includes(relatedHeading)) {
+      const idx = otherContent.indexOf(relatedHeading);
+      const afterHeading = otherContent.indexOf('\n', idx) + 1;
+      newContent = otherContent.slice(0, afterHeading) + linkLine + '\n' + otherContent.slice(afterHeading);
+    } else {
+      newContent = otherContent.trimEnd() + `\n\n${relatedHeading}\n${linkLine}\n`;
+    }
+
+    if (!opts.dryRun) {
+      const updatedFm = { ...otherFm, lastModified: new Date().toISOString().split('T')[0] };
+      const newRaw = buildFrontmatterBlock(updatedFm) + newContent;
+      fs.writeFileSync(filePath, newRaw, 'utf8');
+    }
+
+    changes.push(`Reciprocal link: added "${myTitle}" to ${otherSlug} Related Guides`);
+    edited++;
+  }
+
+  return { content: input.content, frontmatter: input.frontmatter, changes };
+}
+
 // ─── Step 3: Inject Images ────────────────────────────────────────────────────
 export async function stepInjectImages(input: StepInput): Promise<StepOutput> {
   const changes: string[] = [];
@@ -179,8 +292,18 @@ export async function stepInjectImages(input: StepInput): Promise<StepOutput> {
       continue;
     }
 
+    let imgUrl = img.url;
+    if (hasImageKit()) {
+      const fileName = `${input.slug}-${imagesAdded + 1}.jpg`;
+      const cdnUrl = await uploadToImageKit(img.url, fileName);
+      if (cdnUrl) {
+        imgUrl = cdnUrl;
+        changes.push(`Uploaded ${img.source} image to ImageKit CDN`);
+      }
+    }
+
     const altText = `${section.heading} - ${destination} ${contentDomain}`;
-    const imgMdx = `\n\n![${altText}](${img.url})\n*Photo: ${img.credit}*\n`;
+    const imgMdx = `\n\n![${altText}](${imgUrl})\n*Photo: ${img.credit}*\n`;
 
     const headingLine = `## ${section.heading}`;
     const idx = modified.indexOf(headingLine);
@@ -806,6 +929,14 @@ export async function processPost(
     recordStep(slug, 'links', category, result.changes.length, gsc);
   }
 
+  // ── Step 2b: Affiliate links ────────────────────────────────────────────
+  if (mode === 'all' || mode === 'links' || mode === 'affiliates') {
+    const result = stepInjectAffiliates({ ...input, content: state.content, frontmatter: state.frontmatter });
+    state = { content: result.content, frontmatter: result.frontmatter };
+    allChanges.push(...result.changes);
+    recordStep(slug, 'affiliates', category, result.changes.length, gsc);
+  }
+
   // ── Step 3: Images ──────────────────────────────────────────────────────
   if (mode === 'all' || mode === 'images') {
     if (before.images < 2 || (before.word_count > 800 && before.images < 3)) {
@@ -880,6 +1011,15 @@ export async function processPost(
     const result = await stepFactCheck({ ...input, content: state.content, frontmatter: state.frontmatter });
     allChanges.push(...result.changes);
     recordStep(slug, 'factcheck', category, result.changes.length, gsc);
+  }
+
+  // ── Step 10b: Reciprocal internal links (inbound) ───────────────────────
+  // Not part of 'all' — edits sibling files, so it's opt-in via mode or the
+  // generate flow (runs once after a new post lands, not on every audit).
+  if (mode === 'reciprocal-links') {
+    const result = stepInjectReciprocalLinks({ ...input, content: state.content, frontmatter: state.frontmatter }, { dryRun });
+    allChanges.push(...result.changes);
+    recordStep(slug, 'reciprocal-links', category, result.changes.length, gsc);
   }
 
   // ── Step 11: Report export ────────────────────────────────────────────────
@@ -1008,6 +1148,18 @@ export function registerAllStepRunners(): void {
     }
   });
 
+  // Affiliate links runner
+  registerStepRunner('inject-affiliates', async (slug: string) => {
+    try {
+      const post = loadPost(slug);
+      if (!post) return { success: true, changes: [] };
+      const result = stepInjectAffiliates({ slug, filePath: post.filePath, content: post.content, frontmatter: post.frontmatter, gsc: {} });
+      return { success: true, changes: result.changes, data: { linksAdded: result.changes.length } };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Inject affiliates failed' };
+    }
+  });
+
   // Image injection runner
   registerStepRunner('inject-images', async (slug: string) => {
     if (!checkIntegration('pexels').available && !checkIntegration('unsplash').available) {
@@ -1094,6 +1246,18 @@ export function registerAllStepRunners(): void {
       return { success: true, changes: result.changes, data: { verified: result.changes.some(c => c.includes('verified')) } };
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : 'Fact check failed' };
+    }
+  });
+
+  // Reciprocal internal links runner (edits sibling posts, not `slug` itself)
+  registerStepRunner('reciprocal-links', async (slug: string) => {
+    try {
+      const post = loadPost(slug);
+      if (!post) return { success: true, changes: [] };
+      const result = stepInjectReciprocalLinks({ slug, filePath: post.filePath, content: post.content, frontmatter: post.frontmatter, gsc: {} });
+      return { success: true, changes: result.changes, data: { postsEdited: result.changes.length } };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'Reciprocal links failed' };
     }
   });
 

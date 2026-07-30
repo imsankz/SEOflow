@@ -289,6 +289,7 @@ var config_exports = {};
 __export(config_exports, {
   DEFAULT_CONTENT_TYPES: () => DEFAULT_CONTENT_TYPES,
   configure: () => configure,
+  getAffiliateTriggers: () => getAffiliateTriggers,
   getAiContext: () => getAiContext,
   getAuditLogPath: () => getAuditLogPath,
   getBookingTriggers: () => getBookingTriggers,
@@ -297,6 +298,8 @@ __export(config_exports, {
   getContentDomain: () => getContentDomain,
   getContentTypes: () => getContentTypes,
   getDefaultCategory: () => getDefaultCategory,
+  getGapQueuePath: () => getGapQueuePath,
+  getImageKitConfig: () => getImageKitConfig,
   getImageSearchFallback: () => getImageSearchFallback,
   getKeywordCachePath: () => getKeywordCachePath,
   getPostsDir: () => getPostsDir,
@@ -341,7 +344,8 @@ function loadConfig() {
     gscPagesCsv: r(raw.gscPagesCsv),
     gscQueriesCsv: r(raw.gscQueriesCsv),
     auditLogPath: r(raw.auditLogPath),
-    keywordCachePath: r(raw.keywordCachePath)
+    keywordCachePath: r(raw.keywordCachePath),
+    gapQueuePath: raw.gapQueuePath ? r(raw.gapQueuePath) : path2.resolve(root, "data/content-gaps.json")
   };
   return _config;
 }
@@ -362,6 +366,15 @@ function getToolTriggers() {
 }
 function getBookingTriggers() {
   return loadConfig().bookings;
+}
+function getAffiliateTriggers() {
+  return loadConfig().affiliates || [];
+}
+function getGapQueuePath() {
+  return loadConfig().gapQueuePath;
+}
+function getImageKitConfig() {
+  return loadConfig().imageKit || null;
 }
 function getWritingSample(contentType) {
   const c = loadConfig();
@@ -424,13 +437,53 @@ var init_config = __esm({
         schema: "Itinerary",
         instructions: `Write a day-by-day itinerary. Include specific timings, meal recommendations, transit between stops, and practical tips for each day. Start with a "Quick Summary" box highlighting the itinerary at a glance. Include a budget breakdown section.`
       },
+      "city-itinerary-3d": {
+        schema: "Itinerary",
+        instructions: `Write a 3-day city itinerary. Follow this exact H2 structure: Why {destination} Is Worth 3 Days -> Getting to {destination} (train/flight/bus + prices) -> Getting Around {destination} (transport options + day pass cost) -> Where to Stay in {destination} (3 budget tiers + neighbourhood names) -> Day 1: [Theme] (hour-by-hour, entry prices, opening hours) -> Day 2: [Theme] -> Day 3: [Theme] -> Best Restaurants in {destination} (5-6 picks, dish + price range) -> {destination} Budget Breakdown (table: budget/mid/comfort daily cost) -> Best Time to Visit -> Practical Tips -> FAQs (5-6 questions). Open with a 2-sentence quick-summary of what's realistically doable in 3 days, the top 3 highlights, and the best base neighbourhood.`
+      },
+      "city-itinerary-week": {
+        schema: "Itinerary",
+        instructions: `Write a 1-week city/region itinerary. Same structure as a 3-day itinerary but with Day 1 through Day 7 (or day-by-day sub-regions for multi-stop trips), plus a day-trip options section. Include a budget breakdown table and a "how to adjust if you only have X days" note.`
+      },
       "things-to-do": {
         schema: "TravelGuide",
-        instructions: `Write a things-to-do guide with categorized attractions. Include opening hours, ticket prices, how long to spend at each, and honest opinions on what's worth skipping. Group by category (museums, outdoor, free, etc.) or by area.`
+        instructions: `Write a things-to-do guide with categorized attractions. Structure: overview comparison table -> numbered attraction entries (1 through 10-15, each with hours, ticket price, how to get there, honest note on whether it's worth it) -> Free Things to Do -> Day Trips from {destination} -> Practical Tips -> FAQs. Group remaining entries by category (museums, outdoor, free) or by neighbourhood when the list is long.`
       },
       "city-pass-review": {
         schema: "Review",
-        instructions: `Write an honest review of the city pass. Include price comparison with individual attraction costs, what's included vs excluded, best use strategy (which days/attractions maximize value), and who it's worth for. Start with a verdict summary.`
+        instructions: `Write an honest review of the city pass. Open with a 2-sentence verdict: who should buy it, who shouldn't. Then: What's Included (full list + individual attraction prices) -> Pass Prices table (with affiliate booking link) -> Is It Worth It? My Calculation (cost comparison table: pass price vs sum of individual tickets for a realistic itinerary) -> How to Use the Pass -> What's NOT Included (gotchas) -> Alternatives to the Pass -> FAQs. Never inflate the verdict \u2014 if the pass only pays off for specific itineraries, say so explicitly.`
+      },
+      "where-to-stay": {
+        schema: "TravelGuide",
+        instructions: `Write a where-to-stay guide. Structure: neighbourhood overview -> Best Neighbourhoods table (name | vibe | price range | best for) -> Best for First-Timers (hotels at 3 price tiers) -> Best for Budget Travellers -> Best for Families -> Booking Tips (when to book, which platforms) -> FAQs. Name real neighbourhoods, not generic "downtown"/"city centre".`
+      },
+      "best-restaurants": {
+        schema: "TravelGuide",
+        instructions: `Write a best-restaurants guide. 8-12 picks grouped by cuisine or price tier, each with: dish to order, price range, neighbourhood, and one specific detail that proves you'd actually recommend it (not generic "cozy atmosphere" praise). Include a local-food-terms glossary if the cuisine has unfamiliar dishes. Close with practical tips (reservations, tipping norms, meal times) and FAQs.`
+      },
+      "day-trips": {
+        schema: "TravelGuide",
+        instructions: `Write a day-trips-from-{destination} guide. 5-8 destinations, each with: travel time + cost from {destination}, what to do in a single day there, and whether it needs a full day or can be combined with another stop. Include a comparison table (destination | travel time | cost | best for) up top. Close with practical tips (booking trains in advance, luggage storage) and FAQs.`
+      },
+      "budget-guide": {
+        schema: "TravelGuide",
+        instructions: `Write a {destination}-on-a-budget guide. Structure: realistic daily budget table (budget/mid/comfort tiers, broken into accommodation/food/transport/activities) -> money-saving tips per category -> free/cheap things to do -> how prices compare to nearby destinations -> FAQs. Every claim needs a EUR number attached.`
+      },
+      "country-guide": {
+        schema: "TravelGuide",
+        instructions: `Write a country-level travel guide. Structure: overview + when to visit -> getting in (major airports/border crossings) -> getting around (trains/buses/car, with a country rail-pass note if relevant) -> top regions/cities to include in an itinerary (link out to per-city guides) -> money + costs -> practical tips (language, tipping, safety) -> FAQs.`
+      },
+      "country-itinerary": {
+        schema: "Itinerary",
+        instructions: `Write a country-level multi-city itinerary (typically 1-2 weeks). Structure as a route: stop-by-stop with nights-per-stop, inter-city transport (time + price), and a day-by-day breakdown per stop. Include a budget breakdown and an "if you only have X days, cut these stops" note.`
+      },
+      "transportation": {
+        schema: "TravelGuide",
+        instructions: `Write a transportation/getting-around guide. Cover every mode relevant to the destination (metro/tram/bus/train/taxi/rideshare/bike), each with: cost, how to buy tickets, coverage area, and when it's the right choice vs the alternatives. Include a day-pass vs single-ticket cost comparison and an airport-to-city-centre section.`
+      },
+      "getting-around": {
+        schema: "TravelGuide",
+        instructions: `Same as transportation: cover every mode relevant to the destination, cost, ticket-buying process, coverage, and when each is the right choice. Include a day-pass vs single-ticket comparison.`
       },
       "article": {
         schema: "Article",
@@ -1647,6 +1700,244 @@ var init_mdx_parser = __esm({
   "lib/mdx-parser.ts"() {
     "use strict";
     init_config();
+  }
+});
+
+// lib/generator.ts
+var generator_exports = {};
+__export(generator_exports, {
+  generateBatch: () => generateBatch,
+  generatePost: () => generatePost,
+  generateSlug: () => generateSlug,
+  pickNextContentGaps: () => pickNextContentGaps
+});
+import fs9 from "fs";
+import path8 from "path";
+function normalizeType(type) {
+  return type.toLowerCase().replace(/\s+/g, "-");
+}
+function keywordForGap(type, destination) {
+  const map = {
+    "city-pass-review": `${destination} pass review`,
+    "city-itinerary-3d": `3 days in ${destination}`,
+    "city-itinerary-week": `one week in ${destination}`,
+    "things-to-do": `things to do in ${destination}`,
+    "where-to-stay": `where to stay in ${destination}`,
+    "best-restaurants": `best restaurants in ${destination}`,
+    "day-trips": `day trips from ${destination}`,
+    "budget-guide": `${destination} on a budget`,
+    "country-guide": `${destination} travel guide`,
+    "country-itinerary": `one week in ${destination}`,
+    "transportation": `getting around ${destination}`,
+    "getting-around": `how to get around ${destination}`
+  };
+  return map[type] || `${type.replace(/-/g, " ")} ${destination}`;
+}
+function pickNextContentGaps(limit = 1, opts = {}) {
+  const gapQueuePath = getGapQueuePath();
+  if (!fs9.existsSync(gapQueuePath)) {
+    console.log(`     \u26A0\uFE0F  No gap queue found at ${gapQueuePath}`);
+    return [];
+  }
+  let queue;
+  try {
+    queue = JSON.parse(fs9.readFileSync(gapQueuePath, "utf8"));
+  } catch (e) {
+    console.log(`     \u26A0\uFE0F  Failed to parse gap queue: ${e instanceof Error ? e.message : e}`);
+    return [];
+  }
+  const postsDir = getPostsDir();
+  const existingSlugs = new Set(
+    fs9.existsSync(postsDir) ? fs9.readdirSync(postsDir).filter((f) => f.endsWith(".mdx") || f.endsWith(".md")).map((f) => f.replace(/\.mdx?$/, "")) : []
+  );
+  const isPublished = (slug) => {
+    const mdxPath = path8.join(postsDir, `${slug}.mdx`);
+    const mdPath = path8.join(postsDir, `${slug}.md`);
+    const p = fs9.existsSync(mdxPath) ? mdxPath : fs9.existsSync(mdPath) ? mdPath : null;
+    if (!p) return false;
+    try {
+      const { frontmatter } = parseMdx(fs9.readFileSync(p, "utf8"));
+      return frontmatter.published !== false;
+    } catch {
+      return true;
+    }
+  };
+  const matchesFilter = (g) => {
+    if (opts.destination && g.destination.toLowerCase() !== opts.destination.toLowerCase()) return false;
+    if (opts.country && g.country.toLowerCase() !== opts.country.toLowerCase()) return false;
+    return true;
+  };
+  const toGap = (g) => {
+    const type = normalizeType(g.type);
+    const slug = g.suggestedSlug || generateSlug(keywordForGap(type, g.destination), g.destination);
+    return {
+      keyword: keywordForGap(type, g.destination),
+      type,
+      destination: g.destination,
+      country: g.country,
+      slug,
+      priority: g.priority ?? 2
+    };
+  };
+  const picked = [];
+  const seen = /* @__PURE__ */ new Set();
+  const consider = (g) => {
+    if (picked.length >= limit) return;
+    if (!matchesFilter(g)) return;
+    const gap = toGap(g);
+    if (seen.has(gap.slug)) return;
+    if (existingSlugs.has(gap.slug) && isPublished(gap.slug)) return;
+    seen.add(gap.slug);
+    picked.push(gap);
+  };
+  for (const g of queue.aiPrioritised || []) consider(g);
+  const rest = [...queue.allGaps || []].sort((a, b) => {
+    const pDiff = (a.priority ?? 3) - (b.priority ?? 3);
+    if (pDiff !== 0) return pDiff;
+    const aIdx = TYPE_ROI_ORDER.indexOf(normalizeType(a.type));
+    const bIdx = TYPE_ROI_ORDER.indexOf(normalizeType(b.type));
+    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+  });
+  for (const g of rest) consider(g);
+  return picked;
+}
+async function generatePost(gap) {
+  const cfg = loadConfig();
+  const ai = getAiContext();
+  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const contentTypes = getContentTypes();
+  const typeConfig = contentTypes[gap.type] || contentTypes["article"] || { schema: "Article", instructions: "Write an informative article." };
+  const slug = gap.slug || generateSlug(gap.keyword, gap.destination);
+  const postsDir = getPostsDir();
+  if (fs9.existsSync(path8.join(postsDir, `${slug}.mdx`))) {
+    console.log(`     \u23ED\uFE0F  "${slug}" already exists, skipping`);
+    return null;
+  }
+  const domain = getContentDomain();
+  const prompt = `You are ${ai.author}, a ${domain} writer for ${ai.siteUrl}. You live in ${ai.authorLocation} and write honest, practical, first-person ${domain} content.
+
+Generate a complete MDX blog post for the following topic. Follow the instructions strictly.
+
+TOPIC: ${gap.keyword} in ${gap.destination}, ${gap.country}
+TYPE: ${gap.type}
+TARGET WORD COUNT: ${cfg.generation?.wordCountMin || 1500}\u2013${cfg.generation?.wordCountMax || 2500} words
+
+CONTENT INSTRUCTIONS:
+${typeConfig.instructions}
+
+VOICE RULES:
+- First-person, practical, specific. Never generic or AI-sounding.
+- Never start a paragraph with "I" \u2014 vary your sentence openings.
+- Include specific prices, transit times, and real details you've experienced.
+- Short, punchy sentences. Vary length.
+- Never use: nestled, delve, vibrant, treasure trove, hidden gem, breathtaking, truly unique.
+
+OUTPUT FORMAT (YAML frontmatter + MDX body):
+---
+title: "Compelling SEO title under 55 chars"
+date: "${today}"
+lastModified: "${today}"
+category: ${getDefaultCategory()}
+excerpt: "150-160 char meta description with keyword naturally included"
+coverImage: ""
+published: false
+author: ${ai.author}
+tags:
+  - "${gap.destination}"
+  - "${gap.country}"
+  - "${getContentDomain()} guide"
+schema: ${typeConfig.schema}
+focusKeyword: "${gap.keyword}"
+description: "Same as excerpt"
+visitedDate: "${today.slice(0, 7)}"
+---
+
+[Your content here with ## H2 headings]
+
+Internal link format: [anchor text](/related-page) \u2014 use / and not full URLs.
+Include a "Quick Summary" section near the top if it's a guide or itinerary.
+${cfg.destinationPattern ? `Right after the frontmatter, add a one-line breadcrumb: > *Part of [${gap.country} Travel Guide](${cfg.destinationPattern.replace("{country}", gap.country.toLowerCase().replace(/[^a-z0-9]+/g, "-"))})*` : ""}
+Do NOT include markdown code fences around the YAML frontmatter.`;
+  console.log(`     \u{1F916} Generating "${slug}" (${gap.type}, ${gap.country})...`);
+  const response = await aiChatWithRetry(prompt, "content-audit");
+  if (!response) {
+    console.log(`     \u274C Generation failed for "${slug}"`);
+    return null;
+  }
+  let content = response.trim();
+  if (!content.startsWith("---")) {
+    content = `---
+title: "${gap.keyword} - ${gap.destination} Guide"
+date: "${today}"
+lastModified: "${today}"
+category: ${getDefaultCategory()}
+excerpt: "A practical guide to ${gap.keyword.toLowerCase()} in ${gap.destination}."
+coverImage: ""
+published: false
+author: ${ai.author}
+tags:
+  - "${gap.destination}"
+  - "${gap.country}"
+schema: ${typeConfig.schema}
+focusKeyword: "${gap.keyword}"
+description: "A practical guide to ${gap.keyword.toLowerCase()} in ${gap.destination}."
+---
+
+${content}`;
+  }
+  const filePath = path8.join(postsDir, `${slug}.mdx`);
+  fs9.writeFileSync(filePath, content, "utf8");
+  console.log(`     \u2705 Generated: ${slug}.mdx`);
+  return { slug, filePath, content, frontmatter: {} };
+}
+function generateSlug(keyword, destination) {
+  const kw = keyword.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return `${kw}-${destination.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
+async function generateBatch(gaps, limit = 5) {
+  const results = [];
+  const source = gaps.length > 0 ? gaps : pickNextContentGaps(limit);
+  if (source.length === 0) {
+    console.log("     \u{1F4ED} No gaps to generate \u2014 provide --slug/--country or populate the gap queue");
+    return results;
+  }
+  const toProcess = source.slice(0, limit);
+  for (let i = 0; i < toProcess.length; i++) {
+    const gap = toProcess[i];
+    console.log(`
+  [${i + 1}/${toProcess.length}] ${gap.keyword} (${gap.destination})`);
+    const post = await generatePost(gap);
+    if (post) results.push(post);
+  }
+  console.log(`
+\u{1F4CB} Generated ${results.length}/${toProcess.length} posts`);
+  if (results.length > 0) {
+    console.log(`   Files: ${results.map((p) => p.slug).join(", ")}`);
+    console.log(`   Review and set published: true when ready.`);
+  }
+  return results;
+}
+var TYPE_ROI_ORDER;
+var init_generator = __esm({
+  "lib/generator.ts"() {
+    "use strict";
+    init_config();
+    init_ai_provider();
+    init_mdx_parser();
+    TYPE_ROI_ORDER = [
+      "city-pass-review",
+      "city-itinerary-3d",
+      "things-to-do",
+      "city-itinerary-week",
+      "where-to-stay",
+      "best-restaurants",
+      "day-trips",
+      "budget-guide",
+      "country-guide",
+      "country-itinerary",
+      "transportation",
+      "getting-around"
+    ];
   }
 });
 
@@ -4082,6 +4373,7 @@ var init_types = __esm({
       { id: "fix-frontmatter", name: "Fix Frontmatter", phase: "intake", dependsOn: ["keyword-research"], requiresIntegrations: [] },
       // Diagnostic
       { id: "inject-links", name: "Internal Links", phase: "diagnostic", dependsOn: ["fix-frontmatter"], requiresIntegrations: [] },
+      { id: "inject-affiliates", name: "Affiliate Links", phase: "diagnostic", dependsOn: ["fix-frontmatter"], requiresIntegrations: [] },
       { id: "inject-images", name: "Image Injection", phase: "diagnostic", dependsOn: ["fix-frontmatter"], requiresIntegrations: ["pexels", "unsplash"] },
       { id: "neuron-analysis", name: "NeuronWriter NLP", phase: "diagnostic", dependsOn: [], requiresIntegrations: ["neuronwriter"] },
       // Discovery
@@ -4093,6 +4385,7 @@ var init_types = __esm({
       { id: "technical-audit", name: "Technical SEO Audit", phase: "synthesis", dependsOn: [], requiresIntegrations: [] },
       { id: "fact-check", name: "Fact Check", phase: "synthesis", dependsOn: ["content-audit"], requiresIntegrations: ["gemini", "openrouter", "anthropic"] },
       // Final
+      { id: "reciprocal-links", name: "Reciprocal Internal Links", phase: "final", dependsOn: ["fix-frontmatter"], requiresIntegrations: [] },
       { id: "report-export", name: "Report Export", phase: "final", dependsOn: ["schema-validation", "quality-audit", "technical-audit", "fact-check"], requiresIntegrations: [] }
     ];
   }
@@ -4431,6 +4724,99 @@ async function fetchBestImage(query) {
 var init_pexels_client = __esm({
   "lib/pexels-client.ts"() {
     "use strict";
+  }
+});
+
+// lib/imagekit-client.ts
+import https4 from "https";
+function hasImageKit() {
+  const cfg = getImageKitConfig();
+  if (!cfg) return false;
+  const key = process.env[cfg.privateKeyEnv || "IMAGEKIT_PRIVATE_KEY"];
+  return !!key;
+}
+function download(url) {
+  return new Promise((resolve) => {
+    const req = https4.get(url, (res) => {
+      if (res.statusCode && res.statusCode >= 400) return resolve(null);
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("end", () => resolve(Buffer.concat(chunks)));
+    });
+    req.on("error", () => resolve(null));
+    req.setTimeout(1e4, () => {
+      req.destroy();
+      resolve(null);
+    });
+  });
+}
+async function uploadToImageKit(sourceUrl, fileName) {
+  const cfg = getImageKitConfig();
+  if (!cfg) return null;
+  const privateKey = process.env[cfg.privateKeyEnv || "IMAGEKIT_PRIVATE_KEY"];
+  if (!privateKey) return null;
+  const buffer = await download(sourceUrl);
+  if (!buffer) return null;
+  const boundary = `----seoflow${Date.now().toString(36)}`;
+  const folder = cfg.folder || "/blog";
+  const parts = [];
+  const field = (name, value) => Buffer.from(`--${boundary}\r
+Content-Disposition: form-data; name="${name}"\r
+\r
+${value}\r
+`);
+  parts.push(field("fileName", fileName));
+  parts.push(field("folder", folder));
+  parts.push(field("useUniqueFileName", "true"));
+  parts.push(Buffer.from(`--${boundary}\r
+Content-Disposition: form-data; name="file"; filename="${fileName}"\r
+Content-Type: application/octet-stream\r
+\r
+`));
+  parts.push(buffer);
+  parts.push(Buffer.from(`\r
+--${boundary}--\r
+`));
+  const body = Buffer.concat(parts);
+  const auth = Buffer.from(`${privateKey}:`).toString("base64");
+  return new Promise((resolve) => {
+    const req = https4.request(
+      {
+        hostname: "upload.imagekit.io",
+        path: "/api/v1/files/upload",
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${auth}`,
+          "Content-Type": `multipart/form-data; boundary=${boundary}`,
+          "Content-Length": body.length
+        }
+      },
+      (res) => {
+        let data = "";
+        res.on("data", (d) => data += d);
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(data);
+            resolve(json.url || null);
+          } catch {
+            resolve(null);
+          }
+        });
+      }
+    );
+    req.on("error", () => resolve(null));
+    req.setTimeout(15e3, () => {
+      req.destroy();
+      resolve(null);
+    });
+    req.write(body);
+    req.end();
+  });
+}
+var init_imagekit_client = __esm({
+  "lib/imagekit-client.ts"() {
+    "use strict";
+    init_config();
   }
 });
 
@@ -6839,8 +7225,10 @@ __export(steps_exports, {
   stepFactCheck: () => stepFactCheck,
   stepFixFrontmatter: () => stepFixFrontmatter,
   stepGeminiContent: () => stepGeminiContent,
+  stepInjectAffiliates: () => stepInjectAffiliates,
   stepInjectImages: () => stepInjectImages,
   stepInjectLinks: () => stepInjectLinks,
+  stepInjectReciprocalLinks: () => stepInjectReciprocalLinks,
   stepKeywordResearch: () => stepKeywordResearch,
   stepNeuronWriter: () => stepNeuronWriter
 });
@@ -6856,6 +7244,10 @@ function toolTriggers() {
 function bookingTriggers() {
   if (!_bookingTriggers) _bookingTriggers = getBookingTriggers();
   return _bookingTriggers;
+}
+function affiliateTriggers() {
+  if (!_affiliateTriggers) _affiliateTriggers = getAffiliateTriggers();
+  return _affiliateTriggers;
 }
 async function stepKeywordResearch(input) {
   const changes = [];
@@ -6944,6 +7336,84 @@ function stepInjectLinks(input) {
   for (const trigger of bookingTriggers()) tryInsertLink(trigger);
   return { content: modified, frontmatter: input.frontmatter, changes };
 }
+function stepInjectAffiliates(input) {
+  const changes = [];
+  let modified = input.content;
+  const existingLinks = extractExistingLinks(modified);
+  const affiliates = affiliateTriggers();
+  let linksAdded = 0;
+  const MAX_AFFILIATE_LINKS = 3;
+  for (const trigger of affiliates) {
+    if (linksAdded >= MAX_AFFILIATE_LINKS) break;
+    if (existingLinks.has(trigger.url)) continue;
+    for (const kw of trigger.keywords) {
+      const safeKw = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(`(?<!\\[.*?)\\b(${safeKw})\\b(?![^[]*?\\])(?![^(]*?\\))`, "i");
+      const match = modified.match(pattern);
+      if (match) {
+        modified = modified.replace(pattern, `[$1](${trigger.url})`);
+        existingLinks.add(trigger.url);
+        changes.push(`Added affiliate link (${trigger.category || "affiliate"}) to ${trigger.url} (anchor: "${match[1]}")`);
+        linksAdded++;
+        break;
+      }
+    }
+  }
+  return { content: modified, frontmatter: input.frontmatter, changes };
+}
+function stepInjectReciprocalLinks(input, opts = {}) {
+  const changes = [];
+  const maxEdits = opts.maxEdits ?? 3;
+  const postsDir = getPostsDir();
+  const mySlug = input.slug;
+  const myTags = (input.frontmatter.tags || []).map((t) => String(t).toLowerCase());
+  const myTitle = input.frontmatter.title || mySlug;
+  if (myTags.length === 0 || !fs24.existsSync(postsDir)) {
+    return { content: input.content, frontmatter: input.frontmatter, changes };
+  }
+  const candidateFiles = fs24.readdirSync(postsDir).filter((f) => (f.endsWith(".mdx") || f.endsWith(".md")) && f.replace(/\.mdx?$/, "") !== mySlug);
+  let edited = 0;
+  for (const file of candidateFiles) {
+    if (edited >= maxEdits) break;
+    const filePath = path24.join(postsDir, file);
+    const otherSlug = file.replace(/\.mdx?$/, "");
+    let raw;
+    try {
+      raw = fs24.readFileSync(filePath, "utf8");
+    } catch {
+      continue;
+    }
+    const { frontmatter: otherFm, content: otherContent } = parseMdx(raw);
+    if (otherFm.published === false) continue;
+    const otherTags = (otherFm.tags || []).map((t) => String(t).toLowerCase());
+    const sharesTag = otherTags.some((t) => myTags.includes(t));
+    if (!sharesTag) continue;
+    const alreadyLinked = extractExistingLinks(otherContent).has(`/${mySlug}`) || otherContent.includes(`(/${mySlug})`);
+    if (alreadyLinked) continue;
+    const relatedHeading = "## Related Guides";
+    const linkLine = `- [${myTitle}](/${mySlug})`;
+    let newContent;
+    if (otherContent.includes(relatedHeading)) {
+      const idx = otherContent.indexOf(relatedHeading);
+      const afterHeading = otherContent.indexOf("\n", idx) + 1;
+      newContent = otherContent.slice(0, afterHeading) + linkLine + "\n" + otherContent.slice(afterHeading);
+    } else {
+      newContent = otherContent.trimEnd() + `
+
+${relatedHeading}
+${linkLine}
+`;
+    }
+    if (!opts.dryRun) {
+      const updatedFm = { ...otherFm, lastModified: (/* @__PURE__ */ new Date()).toISOString().split("T")[0] };
+      const newRaw = buildFrontmatterBlock(updatedFm) + newContent;
+      fs24.writeFileSync(filePath, newRaw, "utf8");
+    }
+    changes.push(`Reciprocal link: added "${myTitle}" to ${otherSlug} Related Guides`);
+    edited++;
+  }
+  return { content: input.content, frontmatter: input.frontmatter, changes };
+}
 async function stepInjectImages(input) {
   const changes = [];
   const sections = getH2Sections(input.content);
@@ -6962,10 +7432,19 @@ async function stepInjectImages(input) {
       console.log(`    \u26A0\uFE0F  No image found for: "${sanitizeLog(searchQuery)}"`);
       continue;
     }
+    let imgUrl = img.url;
+    if (hasImageKit()) {
+      const fileName = `${input.slug}-${imagesAdded + 1}.jpg`;
+      const cdnUrl = await uploadToImageKit(img.url, fileName);
+      if (cdnUrl) {
+        imgUrl = cdnUrl;
+        changes.push(`Uploaded ${img.source} image to ImageKit CDN`);
+      }
+    }
     const altText = `${section.heading} - ${destination} ${contentDomain}`;
     const imgMdx = `
 
-![${altText}](${img.url})
+![${altText}](${imgUrl})
 *Photo: ${img.credit}*
 `;
     const headingLine = `## ${section.heading}`;
@@ -7443,6 +7922,12 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
     allChanges.push(...result.changes);
     recordStep(slug, "links", category, result.changes.length, gsc);
   }
+  if (mode === "all" || mode === "links" || mode === "affiliates") {
+    const result = stepInjectAffiliates({ ...input, content: state.content, frontmatter: state.frontmatter });
+    state = { content: result.content, frontmatter: result.frontmatter };
+    allChanges.push(...result.changes);
+    recordStep(slug, "affiliates", category, result.changes.length, gsc);
+  }
   if (mode === "all" || mode === "images") {
     if (before.images < 2 || before.word_count > 800 && before.images < 3) {
       const result = await stepInjectImages({ ...input, content: state.content, frontmatter: state.frontmatter });
@@ -7502,6 +7987,11 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
     const result = await stepFactCheck({ ...input, content: state.content, frontmatter: state.frontmatter });
     allChanges.push(...result.changes);
     recordStep(slug, "factcheck", category, result.changes.length, gsc);
+  }
+  if (mode === "reciprocal-links") {
+    const result = stepInjectReciprocalLinks({ ...input, content: state.content, frontmatter: state.frontmatter }, { dryRun });
+    allChanges.push(...result.changes);
+    recordStep(slug, "reciprocal-links", category, result.changes.length, gsc);
   }
   if (mode === "all" || mode === "report") {
     const reportResult = stepExportReport({
@@ -7605,6 +8095,16 @@ function registerAllStepRunners() {
       return { success: false, error: e instanceof Error ? e.message : "Inject links failed" };
     }
   });
+  registerStepRunner("inject-affiliates", async (slug) => {
+    try {
+      const post = loadPost(slug);
+      if (!post) return { success: true, changes: [] };
+      const result = stepInjectAffiliates({ slug, filePath: post.filePath, content: post.content, frontmatter: post.frontmatter, gsc: {} });
+      return { success: true, changes: result.changes, data: { linksAdded: result.changes.length } };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Inject affiliates failed" };
+    }
+  });
   registerStepRunner("inject-images", async (slug) => {
     if (!checkIntegration("pexels").available && !checkIntegration("unsplash").available) {
       throw new SkipStepError("No image API configured");
@@ -7680,6 +8180,16 @@ function registerAllStepRunners() {
       return { success: false, error: e instanceof Error ? e.message : "Fact check failed" };
     }
   });
+  registerStepRunner("reciprocal-links", async (slug) => {
+    try {
+      const post = loadPost(slug);
+      if (!post) return { success: true, changes: [] };
+      const result = stepInjectReciprocalLinks({ slug, filePath: post.filePath, content: post.content, frontmatter: post.frontmatter, gsc: {} });
+      return { success: true, changes: result.changes, data: { postsEdited: result.changes.length } };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "Reciprocal links failed" };
+    }
+  });
   registerStepRunner("report-export", async (slug) => {
     try {
       const post = loadPost(slug);
@@ -7714,12 +8224,13 @@ function registerAllStepRunners() {
   });
   appendLog({ type: "note", summary: "Step runners registered with orchestrator" });
 }
-var AI_PHRASES, _toolTriggers, _bookingTriggers;
+var AI_PHRASES, _toolTriggers, _bookingTriggers, _affiliateTriggers;
 var init_steps = __esm({
   "pipeline/steps.ts"() {
     "use strict";
     init_mdx_parser();
     init_pexels_client();
+    init_imagekit_client();
     init_neuronwriter();
     init_ai_provider();
     init_audit_log();
@@ -7739,6 +8250,7 @@ var init_steps = __esm({
     AI_PHRASES = ["nestled", "delve", "vibrant", "treasure trove", "bustling", "hidden gem", "breathtaking", "truly unique", "picturesque", "enchanting", "captivating", "metropolis", "testament to", "rich tapestry", "magical", "whimsical", "wanderlust", "a must-visit"];
     _toolTriggers = null;
     _bookingTriggers = null;
+    _affiliateTriggers = null;
   }
 });
 
@@ -8071,122 +8583,7 @@ init_audit_log();
 init_ai_provider();
 init_neuronwriter();
 init_learning();
-
-// lib/generator.ts
-init_config();
-init_ai_provider();
-import fs9 from "fs";
-import path8 from "path";
-async function generatePost(gap) {
-  const cfg = loadConfig();
-  const ai = getAiContext();
-  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const contentTypes = getContentTypes();
-  const typeConfig = contentTypes[gap.type] || contentTypes["article"] || { schema: "Article", instructions: "Write an informative article." };
-  const slug = gap.slug || generateSlug(gap.keyword, gap.destination);
-  const postsDir = getPostsDir();
-  if (fs9.existsSync(path8.join(postsDir, `${slug}.mdx`))) {
-    console.log(`     \u23ED\uFE0F  "${slug}" already exists, skipping`);
-    return null;
-  }
-  const domain = getContentDomain();
-  const prompt = `You are ${ai.author}, a ${domain} writer for ${ai.siteUrl}. You live in ${ai.authorLocation} and write honest, practical, first-person ${domain} content.
-
-Generate a complete MDX blog post for the following topic. Follow the instructions strictly.
-
-TOPIC: ${gap.keyword} in ${gap.destination}, ${gap.country}
-TYPE: ${gap.type}
-TARGET WORD COUNT: ${cfg.generation?.wordCountMin || 1500}\u2013${cfg.generation?.wordCountMax || 2500} words
-
-CONTENT INSTRUCTIONS:
-${typeConfig.instructions}
-
-VOICE RULES:
-- First-person, practical, specific. Never generic or AI-sounding.
-- Never start a paragraph with "I" \u2014 vary your sentence openings.
-- Include specific prices, transit times, and real details you've experienced.
-- Short, punchy sentences. Vary length.
-- Never use: nestled, delve, vibrant, treasure trove, hidden gem, breathtaking, truly unique.
-
-OUTPUT FORMAT (YAML frontmatter + MDX body):
----
-title: "Compelling SEO title under 55 chars"
-date: "${today}"
-lastModified: "${today}"
-category: ${getDefaultCategory()}
-excerpt: "150-160 char meta description with keyword naturally included"
-coverImage: ""
-published: false
-author: ${ai.author}
-tags:
-  - "${gap.destination}"
-  - "${gap.country}"
-  - "${getContentDomain()} guide"
-schema: ${typeConfig.schema}
-focusKeyword: "${gap.keyword}"
-description: "Same as excerpt"
-visitedDate: "${today.slice(0, 7)}"
----
-
-[Your content here with ## H2 headings]
-
-Internal link format: [anchor text](/related-page) \u2014 use / and not full URLs.
-Include a "Quick Summary" section near the top if it's a guide or itinerary.
-Do NOT include markdown code fences around the YAML frontmatter.`;
-  console.log(`     \u{1F916} Generating "${slug}" (${gap.type}, ${gap.country})...`);
-  const response = await aiChatWithRetry(prompt, "content-audit");
-  if (!response) {
-    console.log(`     \u274C Generation failed for "${slug}"`);
-    return null;
-  }
-  let content = response.trim();
-  if (!content.startsWith("---")) {
-    content = `---
-title: "${gap.keyword} - ${gap.destination} Guide"
-date: "${today}"
-lastModified: "${today}"
-category: ${getDefaultCategory()}
-excerpt: "A practical guide to ${gap.keyword.toLowerCase()} in ${gap.destination}."
-coverImage: ""
-published: false
-author: ${ai.author}
-tags:
-  - "${gap.destination}"
-  - "${gap.country}"
-schema: ${typeConfig.schema}
-focusKeyword: "${gap.keyword}"
-description: "A practical guide to ${gap.keyword.toLowerCase()} in ${gap.destination}."
----
-
-${content}`;
-  }
-  const filePath = path8.join(postsDir, `${slug}.mdx`);
-  fs9.writeFileSync(filePath, content, "utf8");
-  console.log(`     \u2705 Generated: ${slug}.mdx`);
-  return { slug, filePath, content, frontmatter: {} };
-}
-function generateSlug(keyword, destination) {
-  const kw = keyword.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  return `${kw}-${destination.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
-}
-async function generateBatch(gaps, limit = 5) {
-  const results = [];
-  const toProcess = gaps.slice(0, limit);
-  for (let i = 0; i < toProcess.length; i++) {
-    const gap = toProcess[i];
-    console.log(`
-  [${i + 1}/${toProcess.length}] ${gap.keyword} (${gap.destination})`);
-    const post = await generatePost(gap);
-    if (post) results.push(post);
-  }
-  console.log(`
-\u{1F4CB} Generated ${results.length}/${toProcess.length} posts`);
-  if (results.length > 0) {
-    console.log(`   Files: ${results.map((p) => p.slug).join(", ")}`);
-    console.log(`   Review and set published: true when ready.`);
-  }
-  return results;
-}
+init_generator();
 
 // lib/publisher.ts
 init_config();
@@ -8476,7 +8873,7 @@ var MODE = (() => {
   if (VERB === "brief") return "brief";
   const i = rawArgs.indexOf("--mode");
   const modeArg = i !== -1 ? rawArgs[i + 1] : "all";
-  const validModes = ["all", "meta", "links", "images", "keywords", "neuron", "content", "review", "factcheck", "schema", "technical", "quality", "report"];
+  const validModes = ["all", "meta", "links", "affiliates", "images", "keywords", "neuron", "content", "review", "factcheck", "schema", "technical", "quality", "report", "reciprocal-links"];
   return validModes.includes(modeArg) ? modeArg : "all";
 })();
 async function cmdCluster() {
@@ -8899,19 +9296,47 @@ ${"\u2550".repeat(60)}`);
       const i = rawArgs.indexOf("--country");
       return i !== -1 ? rawArgs[i + 1] : null;
     })();
-    if (!SLUG_FILTER && !country) {
-      console.log("   Provide --slug <keyword> or --country <name> to generate content");
-      console.log('   Example: seoflow generate --slug "best restaurants in prague" --country "Czech Republic"');
-      console.log("");
-      return;
+    const destination = (() => {
+      const i = rawArgs.indexOf("--destination");
+      return i !== -1 ? rawArgs[i + 1] : null;
+    })();
+    const noAudit = rawArgs.includes("--no-audit");
+    let gaps = [];
+    if (SLUG_FILTER || country) {
+      gaps = [
+        { keyword: SLUG_FILTER || "top things to do", type: "things-to-do", destination: country || "", country: country || "" }
+      ];
+    } else {
+      const { pickNextContentGaps: pickNextContentGaps2 } = await Promise.resolve().then(() => (init_generator(), generator_exports));
+      gaps = pickNextContentGaps2(LIMIT, { destination: destination || void 0, country: country || void 0 });
+      if (gaps.length === 0) {
+        console.log("   No gaps to generate. Provide --slug/--country, or populate the gap queue at:");
+        console.log(`   ${(await Promise.resolve().then(() => (init_config(), config_exports))).getGapQueuePath()}`);
+        console.log("");
+        return;
+      }
+      console.log(`\u{1F4CB} Picked ${gaps.length} gap(s) from queue: ${gaps.map((g) => g.slug).join(", ")}
+`);
     }
-    const gaps = [
-      { keyword: SLUG_FILTER || "top things to do", type: "things-to-do", destination: country || "", country: country || "" }
-    ];
     const results2 = await generateBatch(gaps, LIMIT);
     console.log(`
 \u2705 Generated ${results2.length} posts in ${postsDir}`);
-    console.log(`   Run \`seoflow audit <slug>\` to optimize them.`);
+    if (results2.length === 0) return;
+    if (noAudit) {
+      console.log(`   Run \`seoflow audit <slug>\` to optimize them, or \`seoflow generate\` again without --no-audit.`);
+      return;
+    }
+    console.log(`
+\u{1F527} Post-processing ${results2.length} new post(s)...`);
+    const { processPost: processPost3 } = await Promise.resolve().then(() => (init_steps(), steps_exports));
+    for (const post of results2) {
+      await processPost3(post.slug, post.filePath, gscPages, auditLog, { mode: "all", dryRun: DRY_RUN });
+      await processPost3(post.slug, post.filePath, gscPages, auditLog, { mode: "reciprocal-links", dryRun: DRY_RUN });
+      saveAuditLog(auditLog, DRY_RUN);
+    }
+    console.log(`
+\u2705 Post-processing complete for: ${results2.map((p) => p.slug).join(", ")}`);
+    console.log(`   Review and set published: true when ready.`);
     return;
   }
   if (MODE === "publish") {

@@ -6,8 +6,9 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { loadConfig, getPostsDir, getAiContext, getContentTypes, getContentDomain, getDefaultCategory } from './config';
+import { loadConfig, getPostsDir, getGapQueuePath, getAiContext, getContentTypes, getContentDomain, getDefaultCategory } from './config';
 import { aiChatWithRetry } from './ai-provider';
+import { parseMdx } from './mdx-parser';
 import type { Frontmatter } from './types';
 
 export interface ContentGap {
@@ -17,6 +18,140 @@ export interface ContentGap {
   country: string;
   slug?: string;
   priority?: number;
+}
+
+/** Raw gap-queue entry shape (data/content-gaps.json). */
+interface RawGap {
+  destination: string;
+  country: string;
+  type: string;
+  label?: string;
+  priority?: number;
+  suggestedSlug?: string;
+  reason?: string;
+}
+
+interface GapQueue {
+  aiPrioritised?: RawGap[];
+  allGaps?: RawGap[];
+}
+
+/** Type ROI order used to break priority ties — highest-value formats first. */
+const TYPE_ROI_ORDER = [
+  'city-pass-review', 'city-itinerary-3d', 'things-to-do', 'city-itinerary-week',
+  'where-to-stay', 'best-restaurants', 'day-trips', 'budget-guide',
+  'country-guide', 'country-itinerary', 'transportation', 'getting-around',
+];
+
+function normalizeType(type: string): string {
+  return type.toLowerCase().replace(/\s+/g, '-');
+}
+
+function keywordForGap(type: string, destination: string): string {
+  const map: Record<string, string> = {
+    'city-pass-review': `${destination} pass review`,
+    'city-itinerary-3d': `3 days in ${destination}`,
+    'city-itinerary-week': `one week in ${destination}`,
+    'things-to-do': `things to do in ${destination}`,
+    'where-to-stay': `where to stay in ${destination}`,
+    'best-restaurants': `best restaurants in ${destination}`,
+    'day-trips': `day trips from ${destination}`,
+    'budget-guide': `${destination} on a budget`,
+    'country-guide': `${destination} travel guide`,
+    'country-itinerary': `one week in ${destination}`,
+    'transportation': `getting around ${destination}`,
+    'getting-around': `how to get around ${destination}`,
+  };
+  return map[type] || `${type.replace(/-/g, ' ')} ${destination}`;
+}
+
+/**
+ * Pick the next unwritten content gap from the configured gap queue
+ * (data/content-gaps.json by default). Skips any suggestedSlug that
+ * already exists in postsDir. Prefers aiPrioritised entries, then
+ * falls back to allGaps sorted by priority, then type ROI.
+ */
+export function pickNextContentGaps(limit = 1, opts: { destination?: string; country?: string } = {}): ContentGap[] {
+  const gapQueuePath = getGapQueuePath();
+  if (!fs.existsSync(gapQueuePath)) {
+    console.log(`     ⚠️  No gap queue found at ${gapQueuePath}`);
+    return [];
+  }
+
+  let queue: GapQueue;
+  try {
+    queue = JSON.parse(fs.readFileSync(gapQueuePath, 'utf8'));
+  } catch (e) {
+    console.log(`     ⚠️  Failed to parse gap queue: ${e instanceof Error ? e.message : e}`);
+    return [];
+  }
+
+  const postsDir = getPostsDir();
+  const existingSlugs = new Set(
+    fs.existsSync(postsDir)
+      ? fs.readdirSync(postsDir).filter(f => f.endsWith('.mdx') || f.endsWith('.md')).map(f => f.replace(/\.mdx?$/, ''))
+      : []
+  );
+
+  const isPublished = (slug: string): boolean => {
+    const mdxPath = path.join(postsDir, `${slug}.mdx`);
+    const mdPath = path.join(postsDir, `${slug}.md`);
+    const p = fs.existsSync(mdxPath) ? mdxPath : (fs.existsSync(mdPath) ? mdPath : null);
+    if (!p) return false;
+    try {
+      const { frontmatter } = parseMdx(fs.readFileSync(p, 'utf8'));
+      return frontmatter.published !== false; // treat missing/true as published
+    } catch {
+      return true; // file exists and can't be parsed — don't overwrite it
+    }
+  };
+
+  const matchesFilter = (g: RawGap): boolean => {
+    if (opts.destination && g.destination.toLowerCase() !== opts.destination.toLowerCase()) return false;
+    if (opts.country && g.country.toLowerCase() !== opts.country.toLowerCase()) return false;
+    return true;
+  };
+
+  const toGap = (g: RawGap): ContentGap => {
+    const type = normalizeType(g.type);
+    const slug = g.suggestedSlug || generateSlug(keywordForGap(type, g.destination), g.destination);
+    return {
+      keyword: keywordForGap(type, g.destination),
+      type,
+      destination: g.destination,
+      country: g.country,
+      slug,
+      priority: g.priority ?? 2,
+    };
+  };
+
+  const picked: ContentGap[] = [];
+  const seen = new Set<string>();
+
+  const consider = (g: RawGap) => {
+    if (picked.length >= limit) return;
+    if (!matchesFilter(g)) return;
+    const gap = toGap(g);
+    if (seen.has(gap.slug!)) return;
+    if (existingSlugs.has(gap.slug!) && isPublished(gap.slug!)) return;
+    seen.add(gap.slug!);
+    picked.push(gap);
+  };
+
+  // 1. AI-prioritised queue first (already ranked by ROI/impact)
+  for (const g of queue.aiPrioritised || []) consider(g);
+
+  // 2. Remaining gaps, sorted by priority (1 = highest) then type ROI order
+  const rest = [...(queue.allGaps || [])].sort((a, b) => {
+    const pDiff = (a.priority ?? 3) - (b.priority ?? 3);
+    if (pDiff !== 0) return pDiff;
+    const aIdx = TYPE_ROI_ORDER.indexOf(normalizeType(a.type));
+    const bIdx = TYPE_ROI_ORDER.indexOf(normalizeType(b.type));
+    return (aIdx === -1 ? 999 : aIdx) - (bIdx === -1 ? 999 : bIdx);
+  });
+  for (const g of rest) consider(g);
+
+  return picked;
 }
 
 export interface GeneratedPost {
@@ -88,6 +223,7 @@ visitedDate: "${today.slice(0, 7)}"
 
 Internal link format: [anchor text](/related-page) — use / and not full URLs.
 Include a "Quick Summary" section near the top if it's a guide or itinerary.
+${cfg.destinationPattern ? `Right after the frontmatter, add a one-line breadcrumb: > *Part of [${gap.country} Travel Guide](${cfg.destinationPattern.replace('{country}', gap.country.toLowerCase().replace(/[^a-z0-9]+/g, '-'))})*` : ''}
 Do NOT include markdown code fences around the YAML frontmatter.`;
 
   console.log(`     🤖 Generating "${slug}" (${gap.type}, ${gap.country})...`);
@@ -120,11 +256,17 @@ export function generateSlug(keyword: string, destination: string): string {
 }
 
 /**
- * Generate multiple posts from a list of gaps.
+ * Generate multiple posts from a list of gaps. If `gaps` is empty, pulls
+ * the next `limit` unwritten gaps from the configured gap queue.
  */
 export async function generateBatch(gaps: ContentGap[], limit = 5): Promise<GeneratedPost[]> {
   const results: GeneratedPost[] = [];
-  const toProcess = gaps.slice(0, limit);
+  const source = gaps.length > 0 ? gaps : pickNextContentGaps(limit);
+  if (source.length === 0) {
+    console.log('     📭 No gaps to generate — provide --slug/--country or populate the gap queue');
+    return results;
+  }
+  const toProcess = source.slice(0, limit);
 
   for (let i = 0; i < toProcess.length; i++) {
     const gap = toProcess[i];

@@ -1,6 +1,6 @@
 {
   "name": "@imsankz/seoflow",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "AI-powered SEO pipeline — content audit, keyword research, internal linking, image injection, content generation, publishing",
   "type": "module",
   "bin": {
