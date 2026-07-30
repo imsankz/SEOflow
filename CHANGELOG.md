@@ -2,7 +2,7 @@
 
 All notable changes to SeoFlow will be documented in this file.
 
-## [0.2.0] — 2026-07-30
+## [0.2.1] — 2026-07-30
 
 ### Added
 - **Rich content-type templates** — 12 type-specific H2 outlines for `seoflow generate` (city-pass-review, city-itinerary-3d/week, things-to-do, where-to-stay, best-restaurants, day-trips, budget-guide, country-guide, country-itinerary, transportation, getting-around, guide/itinerary/article)
