@@ -18,7 +18,7 @@
  *   seoflow extensions status             Show installed extension state
  *
  * Legacy flag-based syntax (still supported):
- *   --mode <meta|links|images|keywords|neuron|content|review|factcheck|schema|technical|quality|report|all>
+ *   --mode <meta|links|images|keywords|neuron|content|review|factcheck|schema|technical|quality|geo|report|all>
  *   --slug <slug>            Process only this post
  *   --dry-run                Preview without writing
  *   --limit <n>              Max posts to process (default 10)
@@ -70,7 +70,7 @@ const MODE = (() => {
   const modeArg = i !== -1 ? rawArgs[i + 1] : 'all';
 
   // Validate mode
-  const validModes = ['all', 'meta', 'links', 'affiliates', 'images', 'keywords', 'neuron', 'content', 'review', 'factcheck', 'schema', 'technical', 'quality', 'report', 'reciprocal-links'];
+  const validModes = ['all', 'meta', 'links', 'affiliates', 'images', 'keywords', 'neuron', 'content', 'review', 'factcheck', 'schema', 'technical', 'quality', 'geo', 'report', 'reciprocal-links'];
   return validModes.includes(modeArg) ? modeArg : 'all';
 })();
 

@@ -23,6 +23,7 @@ import type { AuditLog } from '../lib/types';
 import { processSchema } from '../lib/schema';
 import { stepTechnicalAudit } from './technical';
 import { stepContentQualityAudit } from './content-quality';
+import { stepGeoAudit } from './geo';
 import { stepExportReport } from './report-export';
 import { registerStepRunner, type StepRunner } from '../lib/orchestrator';
 import { appendLog, recordPostRun } from '../lib/brain';
@@ -997,6 +998,19 @@ export async function processPost(
     state.content = result.content;
     allChanges.push(...result.changes);
     recordStep(slug, 'quality', category, result.changes.length, gsc);
+  }
+
+  // ── Step 8b: GEO / AI-citability audit (read-only scoring) ─────────────
+  if (mode === 'all' || mode === 'geo') {
+    const geoResult = stepGeoAudit({ ...input, content: state.content, frontmatter: state.frontmatter });
+    allChanges.push(...geoResult.changes);
+    const data = geoResult.data;
+    if (data) {
+      data.issues.forEach(i => console.log(`     🔴 GEO: ${i}`));
+      data.warnings.forEach(w => console.log(`     ⚠️  GEO: ${w}`));
+      data.quickWins.forEach(q => console.log(`     💡 GEO: ${q}`));
+    }
+    recordStep(slug, 'geo', category, geoResult.changes.length, gsc);
   }
 
   // ── Step 9: Technical audit ─────────────────────────────────────────────

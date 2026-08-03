@@ -2,6 +2,11 @@
 
 All notable changes to SeoFlow will be documented in this file.
 
+## [0.2.2] — 2026-08-04
+
+### Added
+- **GEO / AI-citability audit mode** — `seoflow audit --mode geo` (and `npm run seo:geo`) scores every post 0-100 for how likely AI answer engines (ChatGPT, Claude, Gemini, Perplexity, AI Overviews) are to cite it. Read-only scoring step (no content rewrites). Checks: answer-first opening (direct answer in first 60 words), question-form H2/H3 headings, FAQ Q/A blocks, walls of text (>120-word paragraphs), lists/tables density, self-contained passage warnings, AI-sounding phrase detection. Based on the BabyLoveGrowth Academy playbook (see the `seo-geo` skill). Runs automatically as part of `--mode all`.
+
 ## [0.2.1] — 2026-07-30
 
 ### Added
