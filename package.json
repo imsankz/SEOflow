@@ -1,7 +1,7 @@
 {
   "name": "@imsankz/seoflow",
   "version": "0.2.2",
-  "description": "AI-powered SEO pipeline — content audit, keyword research, internal linking, image injection, content generation, publishing",
+  "description": "AI-powered SEO pipeline \u2014 content audit, keyword research, internal linking, image injection, content generation, publishing",
   "type": "module",
   "bin": {
     "seoflow": "./dist/bin/cli.js"
@@ -86,5 +86,8 @@
   },
   "dependencies": {
     "node-fetch": "^3.3.2"
+  },
+  "optionalDependencies": {
+    "googleapis": "^174.0.0"
   }
 }
