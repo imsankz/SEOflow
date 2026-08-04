@@ -110,7 +110,7 @@ export function parseGscPagesFromCsv(): Record<string, GSCPageData> {
   const map: Record<string, GSCPageData> = {};
   const cfg = loadConfig();
   const p = cfg.gscPagesCsv;
-  if (!fs.existsSync(p)) return map;
+  if (!p || !fs.existsSync(p) || !fs.statSync(p).isFile()) return map;
 
   const lines = fs.readFileSync(p, 'utf8').trim().split('\n');
   if (lines.length < 2) return map;
@@ -143,7 +143,7 @@ export function parseGscPagesFromCsv(): Record<string, GSCPageData> {
 export function parseGscQueriesFromCsv(): Record<string, GSCQueryData> {
   const map: Record<string, GSCQueryData> = {};
   const p = loadConfig().gscQueriesCsv;
-  if (!fs.existsSync(p)) return map;
+  if (!p || !fs.existsSync(p) || !fs.statSync(p).isFile()) return map;
 
   const lines = fs.readFileSync(p, 'utf8').trim().split('\n');
   if (lines.length < 2) return map;

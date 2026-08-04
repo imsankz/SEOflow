@@ -28,6 +28,15 @@ export function parseMdx(raw: string): { frontmatter: Frontmatter; fmBlock: stri
       currentKey = kv[1];
       let val: any = kv[2].trim();
       if (val === '>-' || val === '>') { inMultiline = true; multilineVal = []; continue; }
+      // Inline bracket array — e.g. tags: ["a", "b", "c"]
+      if (val.startsWith('[') && val.endsWith(']')) {
+        frontmatter[currentKey] = val
+          .slice(1, -1)
+          .split(',')
+          .map((s: string) => s.trim().replace(/^['"]|['"]$/g, ''))
+          .filter(Boolean);
+        continue;
+      }
       if (val === 'true') val = true;
       else if (val === 'false') val = false;
       else if (/^\d+$/.test(val)) val = parseInt(val);

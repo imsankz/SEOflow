@@ -1607,6 +1607,10 @@ function parseMdx(raw) {
         multilineVal = [];
         continue;
       }
+      if (val.startsWith("[") && val.endsWith("]")) {
+        frontmatter[currentKey] = val.slice(1, -1).split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, "")).filter(Boolean);
+        continue;
+      }
       if (val === "true") val = true;
       else if (val === "false") val = false;
       else if (/^\d+$/.test(val)) val = parseInt(val);
@@ -6762,6 +6766,139 @@ var init_content_quality2 = __esm({
   }
 });
 
+// pipeline/geo.ts
+function countQuestionHeadings(body) {
+  const matches = body.match(/^#{2,3}\s+.*\?$/gm) || [];
+  return matches.length;
+}
+function countFaqBlocks(body) {
+  const qMatches = body.match(/^Q[.:]\s+/gm) || [];
+  const aMatches = body.match(/^A[.:]\s+/gm) || [];
+  return Math.min(qMatches.length, aMatches.length);
+}
+function countLongParagraphs(body) {
+  const paras = body.split(/\n\s*\n/);
+  let count = 0;
+  for (const p of paras) {
+    const trimmed = p.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("-") || trimmed.startsWith("|")) continue;
+    const words = trimmed.split(/\s+/).length;
+    if (words > 120) count++;
+  }
+  return count;
+}
+function countListsAndTables(body) {
+  const lists = (body.match(/^[-*]\s+/gm) || []).length;
+  const tables = (body.match(/^\|.+\|$/gm) || []).length;
+  return lists + tables;
+}
+function findSelfContainedWarnings(body) {
+  const warnings = [];
+  const paras = body.split(/\n\s*\n/);
+  for (const p of paras) {
+    const trimmed = p.trim();
+    if (!trimmed || trimmed.startsWith("#") || trimmed.startsWith("-")) continue;
+    const firstSentence = trimmed.split(/(?<=[.!?])\s/)[0] || "";
+    const lower = firstSentence.toLowerCase();
+    if (/^(it|this|that|these|those|they|he|she|we|as mentioned|as noted|above|earlier|the former|the latter)\b/.test(lower) && !/^(it is|it's|it takes|it costs|it depends)/.test(lower)) {
+      warnings.push(firstSentence.slice(0, 100) + (firstSentence.length > 100 ? "\u2026" : ""));
+    }
+  }
+  return warnings.slice(0, 5);
+}
+function countAiPatterns(body) {
+  const matches = body.match(AI_PATTERNS) || [];
+  return matches.length;
+}
+function stepGeoAudit(input) {
+  const changes = [];
+  const body = input.content || "";
+  const title = input.frontmatter?.title || "";
+  const first60 = body.replace(/^#.*$/gm, "").trim().split(/\s+/).slice(0, 60).join(" ");
+  const answerFirstPass = first60.split(/\s+/).length >= 15 && /(?:is|are|costs|takes|includes|offers|features|starts|runs|located|open|best|top|guide|plan|you can|how to|where to)\b/i.test(first60) && !/^(when i|i started|i remember|let me|so,|now,|imagine|as a traveler)/i.test(first60.trim());
+  const questionHeadingCount = countQuestionHeadings(body);
+  const faqBlocks = countFaqBlocks(body);
+  const longParagraphs = countLongParagraphs(body);
+  const listsAndTables = countListsAndTables(body);
+  const selfContainedWarnings = findSelfContainedWarnings(body);
+  const aiPatterns = countAiPatterns(body);
+  let score = 40;
+  if (answerFirstPass) score += 15;
+  if (faqBlocks >= 1) score += 10;
+  if (faqBlocks >= 3) score += 5;
+  if (questionHeadingCount >= 2) score += 10;
+  if (questionHeadingCount >= 5) score += 5;
+  if (listsAndTables >= 5) score += 10;
+  if (listsAndTables >= 12) score += 5;
+  if (longParagraphs === 0) score += 10;
+  if (longParagraphs <= 2) score += 5;
+  if (aiPatterns === 0) score += 5;
+  if (selfContainedWarnings.length === 0) score += 5;
+  score = Math.min(100, Math.max(0, score));
+  const issues = [];
+  const warnings = [];
+  const quickWins = [];
+  if (score >= 80) {
+    changes.push(`\u2705 GEO citability score: ${score}/100 \u2014 strong AI-quote potential`);
+  } else if (score >= 60) {
+    changes.push(`\u{1F7E1} GEO citability score: ${score}/100 \u2014 good, room to improve`);
+    warnings.push("GEO score 60-79: add question headings or FAQ block to push past 80.");
+  } else {
+    changes.push(`\u{1F534} GEO citability score: ${score}/100 \u2014 needs AI-quotability work`);
+    issues.push("GEO score < 60: content likely passed over by AI answer engines.");
+  }
+  if (!answerFirstPass) {
+    issues.push("No direct answer in first 60 words \u2014 AIs grab the top of a section; lead with the answer, then explain.");
+    quickWins.push("Rewrite the opening paragraph to state the direct answer first (40-60 words).");
+  }
+  if (faqBlocks === 0) {
+    warnings.push("No FAQ block \u2014 add Q:/A: pairs for ready-made quote fodder.");
+    quickWins.push("Add an FAQ section with 3-5 Q:/A: pairs.");
+  }
+  if (questionHeadingCount === 0) {
+    warnings.push('No question-form headings \u2014 make H2s the real questions ("How much does X cost?" beats "Pricing").');
+  }
+  if (longParagraphs > 0) {
+    warnings.push(`${longParagraphs} paragraph(s) over 120 words \u2014 walls of text are hard for AIs to extract from.`);
+    quickWins.push("Break long paragraphs into 2-4 sentence chunks.");
+  }
+  if (aiPatterns > 0) {
+    warnings.push(`${aiPatterns} AI-sounding phrase(s) found (e.g. "nestled", "bustling", "when it comes to") \u2014 AI-quotable content reads human.`);
+  }
+  if (selfContainedWarnings.length > 0) {
+    warnings.push("Opening sentences reference prior context \u2014 a section must make sense lifted out of the page to be quoted.");
+  }
+  if (listsAndTables < 5) {
+    warnings.push("Few lists/tables \u2014 these are the easiest content for a model to copy cleanly.");
+  }
+  if (score >= 80) quickWins.push("Post is AI-quotable \u2014 ensure it stays fresh (lastModified) since Perplexity rewards recency.");
+  changes.push(`GEO audit: ${questionHeadingCount} question headings, ${faqBlocks} FAQ blocks, ${listsAndTables} lists/tables, ${longParagraphs} long paragraphs`);
+  return {
+    content: input.content,
+    frontmatter: input.frontmatter,
+    changes,
+    data: {
+      score,
+      answerFirstPass,
+      questionHeadingCount,
+      faqBlocks,
+      longParagraphs,
+      listsAndTables,
+      selfContainedWarnings,
+      issues,
+      warnings,
+      quickWins
+    }
+  };
+}
+var AI_PATTERNS;
+var init_geo = __esm({
+  "pipeline/geo.ts"() {
+    "use strict";
+    AI_PATTERNS = /(?:as an AI|language model|delve|tapestry|testament|embark|unlock|moreover|furthermore|in conclusion|nestled|bustling|vibrant|picturesque|hidden gem|hassle-free|game-changer|breathtaking|wanderlust|adventure awaits|when it comes to|whether you'?re (?:a |an )?)/gi;
+  }
+});
+
 // lib/reports/pdf-generator.ts
 import path22 from "path";
 import fs22 from "fs";
@@ -7978,6 +8115,17 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
     allChanges.push(...result.changes);
     recordStep(slug, "quality", category, result.changes.length, gsc);
   }
+  if (mode === "all" || mode === "geo") {
+    const geoResult = stepGeoAudit({ ...input, content: state.content, frontmatter: state.frontmatter });
+    allChanges.push(...geoResult.changes);
+    const data = geoResult.data;
+    if (data) {
+      data.issues.forEach((i) => console.log(`     \u{1F534} GEO: ${i}`));
+      data.warnings.forEach((w) => console.log(`     \u26A0\uFE0F  GEO: ${w}`));
+      data.quickWins.forEach((q) => console.log(`     \u{1F4A1} GEO: ${q}`));
+    }
+    recordStep(slug, "geo", category, geoResult.changes.length, gsc);
+  }
   if (mode === "all" || mode === "technical") {
     const result = await stepTechnicalAudit({ ...input, content: state.content, frontmatter: state.frontmatter });
     allChanges.push(...result.changes);
@@ -8243,6 +8391,7 @@ var init_steps = __esm({
     init_schema();
     init_technical();
     init_content_quality2();
+    init_geo();
     init_report_export();
     init_orchestrator();
     init_brain();
@@ -8517,7 +8666,7 @@ function parseGscPagesFromCsv() {
   const map = {};
   const cfg = loadConfig();
   const p = cfg.gscPagesCsv;
-  if (!fs3.existsSync(p)) return map;
+  if (!p || !fs3.existsSync(p) || !fs3.statSync(p).isFile()) return map;
   const lines = fs3.readFileSync(p, "utf8").trim().split("\n");
   if (lines.length < 2) return map;
   const cols = detectColumns(lines[0]);
@@ -8545,7 +8694,7 @@ function parseGscPagesFromCsv() {
 function parseGscQueriesFromCsv() {
   const map = {};
   const p = loadConfig().gscQueriesCsv;
-  if (!fs3.existsSync(p)) return map;
+  if (!p || !fs3.existsSync(p) || !fs3.statSync(p).isFile()) return map;
   const lines = fs3.readFileSync(p, "utf8").trim().split("\n");
   if (lines.length < 2) return map;
   for (const line of lines.slice(1)) {
@@ -8873,7 +9022,7 @@ var MODE = (() => {
   if (VERB === "brief") return "brief";
   const i = rawArgs.indexOf("--mode");
   const modeArg = i !== -1 ? rawArgs[i + 1] : "all";
-  const validModes = ["all", "meta", "links", "affiliates", "images", "keywords", "neuron", "content", "review", "factcheck", "schema", "technical", "quality", "report", "reciprocal-links"];
+  const validModes = ["all", "meta", "links", "affiliates", "images", "keywords", "neuron", "content", "review", "factcheck", "schema", "technical", "quality", "geo", "report", "reciprocal-links"];
   return validModes.includes(modeArg) ? modeArg : "all";
 })();
 async function cmdCluster() {
