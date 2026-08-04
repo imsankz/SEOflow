@@ -303,6 +303,7 @@ __export(config_exports, {
   getImageSearchFallback: () => getImageSearchFallback,
   getKeywordCachePath: () => getKeywordCachePath,
   getPostsDir: () => getPostsDir,
+  getSiteAuthor: () => getSiteAuthor,
   getSiteUrl: () => getSiteUrl,
   getToolTriggers: () => getToolTriggers,
   getWritingSample: () => getWritingSample,
@@ -360,6 +361,9 @@ function getKeywordCachePath() {
 }
 function getSiteUrl() {
   return loadConfig().siteUrl;
+}
+function getSiteAuthor() {
+  return loadConfig().author;
 }
 function getToolTriggers() {
   return loadConfig().tools;
@@ -1624,6 +1628,10 @@ function parseMdx(raw) {
     }
   }
   if (inMultiline && currentKey) frontmatter[currentKey] = multilineVal.join(" ").trim();
+  frontmatter.author = frontmatter.author || getSiteAuthor();
+  if (!frontmatter.date) {
+    frontmatter.date = frontmatter.publishedDate || frontmatter.datePublished || frontmatter.updated || frontmatter.lastModified;
+  }
   return { frontmatter, fmBlock, content };
 }
 function buildFrontmatterBlock(fm) {
@@ -2686,6 +2694,7 @@ function ensureVault(clientSlug, rootDir) {
     path14.join(wd, "pages"),
     path14.join(wd, "entities"),
     path14.join(wd, "competitors"),
+    path14.join(wd, "research"),
     path14.join(wd, "flows"),
     path14.join(wd, "concepts"),
     path14.join(wd, "deliverables"),
@@ -2802,6 +2811,7 @@ __export(brain_manager_exports, {
   initBrain: () => initBrain,
   recordAuditRun: () => recordAuditRun,
   recordFinding: () => recordFinding,
+  recordResearch: () => recordResearch,
   recordSignal: () => recordSignal,
   suggestNextActions: () => suggestNextActions,
   vaultSummary: () => vaultSummary
@@ -2908,11 +2918,36 @@ function recordSignal(url, signalId, label, severity, detail) {
 *Auto-detected by SeoFlow URL auditor*`);
   recordClaim(getSlug(), `${label}: ${detail}`, url, severity === "high" ? "high" : "medium");
 }
+function recordResearch(topic, kind, summary, source) {
+  ensureVault(getSlug());
+  const dateStr2 = (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
+  const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 48);
+  const folder = kind === "competitor" ? "competitors" : kind === "decision" ? "decisions" : kind === "keyword" ? "keywords" : "research";
+  const fm = {
+    title: topic,
+    owner: "seoflow",
+    confidence: 0.8,
+    approval_status: "draft",
+    risk_level: "low",
+    created: dateStr2,
+    updated: dateStr2
+  };
+  const body = `## ${topic}
+
+**Kind:** ${kind}
+**Date:** ${dateStr2}
+**Summary:** ${summary}
+${source ? `**Source:** ${source}
+` : ""}
+
+*Logged by SeoFlow \u2014 check this folder before researching ${topic} again.*`;
+  return writeVaultNote(getSlug(), folder, `${dateStr2}-${slug}`, fm, body);
+}
 function vaultSummary() {
   const baseDir = path16.join(process.cwd(), ".seoflow", "brain", getSlug());
   if (!fs17.existsSync(baseDir)) return "No vault data yet. Run an audit first.";
   const lines = ["## Vault Summary"];
-  const types = ["audits", "findings", "decisions", "deliverables", "entities"];
+  const types = ["audits", "findings", "decisions", "deliverables", "entities", "research", "competitors", "keywords"];
   for (const type of types) {
     const dir = path16.join(baseDir, "wiki", type);
     if (fs17.existsSync(dir)) {
@@ -5222,6 +5257,17 @@ __export(schema_exports, {
   processSchema: () => processSchema,
   validateSchema: () => validateSchema
 });
+function resolveAuthor(fm) {
+  return fm.author || getSiteAuthor() || "Unknown";
+}
+function resolveDate(fm) {
+  return fm.date || fm.publishedDate || fm.datePublished || fm.lastModified || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+}
+function resolvePageUrl(fm) {
+  const base = getSiteUrl().replace(/^https?:\/\//, "").replace(/\/+$/, "");
+  if (!fm.slug) return `https://${base}`;
+  return fm.pillar ? `https://${base}/${fm.pillar}/${fm.slug}` : `https://${base}/${fm.slug}`;
+}
 function detectSchemaType(fm, content) {
   if (fm.schema) {
     const schema = fm.schema.toLowerCase();
@@ -5270,13 +5316,13 @@ function generateArticleSchema(fm) {
     description: fm.description || "",
     author: {
       "@type": "Person",
-      name: fm.author || "Unknown"
+      name: resolveAuthor(fm)
     },
-    datePublished: fm.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-    dateModified: fm.lastModified || fm.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+    datePublished: resolveDate(fm),
+    dateModified: resolveDate(fm),
     mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": fm.slug || ""
+      "@id": resolvePageUrl(fm)
     }
   };
   if (fm.category) {
@@ -5377,9 +5423,9 @@ function generateReviewSchema(fm) {
     },
     author: {
       "@type": "Person",
-      name: fm.author || "Unknown"
+      name: resolveAuthor(fm)
     },
-    datePublished: fm.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0]
+    datePublished: resolveDate(fm)
   };
   if (fm.rating) {
     schema.reviewRating = {
@@ -5422,7 +5468,7 @@ function generateWebPageSchema(fm) {
     "@type": "WebPage",
     name: fm.title || "",
     description: fm.description || "",
-    url: fm.slug || ""
+    url: resolvePageUrl(fm)
   };
 }
 function generateOrganizationSchema(fm) {
@@ -5456,13 +5502,13 @@ function generateBlogPostingSchema(fm) {
     description: fm.description || "",
     author: {
       "@type": "Person",
-      name: fm.author || "Unknown"
+      name: resolveAuthor(fm)
     },
-    datePublished: fm.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-    dateModified: fm.lastModified || fm.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+    datePublished: resolveDate(fm),
+    dateModified: resolveDate(fm),
     mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": fm.slug || ""
+      "@id": resolvePageUrl(fm)
     }
   };
   if (fm.category) {
@@ -5481,13 +5527,13 @@ function generateNewsArticleSchema(fm) {
     description: fm.description || "",
     author: {
       "@type": "Person",
-      name: fm.author || "Unknown"
+      name: resolveAuthor(fm)
     },
-    datePublished: fm.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-    dateModified: fm.lastModified || fm.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+    datePublished: resolveDate(fm),
+    dateModified: resolveDate(fm),
     mainEntityOfPage: {
       "@type": "WebPage",
-      "@id": fm.slug || ""
+      "@id": resolvePageUrl(fm)
     },
     publisher: {
       "@type": "Organization",
@@ -5599,10 +5645,10 @@ function generateDiscussionForumPostingSchema(fm) {
     description: fm.description || "",
     author: {
       "@type": "Person",
-      name: fm.author || "Unknown"
+      name: resolveAuthor(fm)
     },
-    datePublished: fm.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
-    dateModified: fm.lastModified || fm.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0]
+    datePublished: resolveDate(fm),
+    dateModified: resolveDate(fm)
   };
 }
 function generateSchema(fm, content) {
@@ -5818,6 +5864,7 @@ ${schemaTag}`);
 var init_schema = __esm({
   "lib/schema.ts"() {
     "use strict";
+    init_config();
   }
 });
 
@@ -8020,6 +8067,7 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
   \u{1F4C4} ${sanitizeLog(slug)}`);
   const raw = fs24.readFileSync(filePath, "utf8");
   const parsed = parseMdx(raw);
+  if (!parsed.frontmatter.slug) parsed.frontmatter.slug = slug;
   const gsc = gscPages[slug] || {};
   const input = { slug, filePath, content: parsed.content, frontmatter: parsed.frontmatter, gsc };
   const before = {
@@ -8210,6 +8258,7 @@ function loadPost(slug) {
 function readPostFile(filePath) {
   const raw = fs24.readFileSync(filePath, "utf-8");
   const { frontmatter, content } = parseMdx(raw);
+  if (!frontmatter.slug) frontmatter.slug = path24.basename(filePath, path24.extname(filePath));
   return { filePath, content, frontmatter };
 }
 function registerAllStepRunners() {
@@ -8519,7 +8568,10 @@ function dateStr(daysAgo) {
 }
 function getSiteProperty() {
   const envOverride = process.env.GSC_SITE_URL;
-  if (envOverride) return envOverride.endsWith("/") ? envOverride : envOverride + "/";
+  if (envOverride) {
+    if (envOverride.startsWith("sc-domain:")) return envOverride;
+    return envOverride.endsWith("/") ? envOverride : envOverride + "/";
+  }
   const cfg = loadConfig();
   const url = cfg.siteUrl.startsWith("http") ? cfg.siteUrl : `https://${cfg.siteUrl}`;
   return url.endsWith("/") ? url : url + "/";
@@ -9322,6 +9374,36 @@ async function runPipeline2() {
       }
     } catch (e) {
       console.log("Vault not available:", e instanceof Error ? e.message : "error");
+    }
+    return;
+  }
+  if (VERB === "research") {
+    try {
+      const { recordResearch: recordResearch2, vaultSummary: vaultSummary2 } = await Promise.resolve().then(() => (init_brain_manager(), brain_manager_exports));
+      const args = rawArgs.slice(1).filter((a) => !a.startsWith("--"));
+      const topic = args.join(" ");
+      const kindArg = rawArgs.find((a) => a.startsWith("--kind="));
+      const srcArg = rawArgs.find((a) => a.startsWith("--source="));
+      if (!topic) {
+        console.log(vaultSummary2());
+        console.log('\nUsage: seoflow research "<topic>" [--kind=competitor|keyword|finding|decision|topic] [--source=<url>]');
+        return;
+      }
+      const kind = kindArg?.split("=")[1] || "finding";
+      const source = srcArg?.split("=")[1];
+      const note = recordResearch2(topic, kind, topic, source);
+      console.log(`\u{1F4DD} Research logged: ${topic}`);
+      console.log(`   \u2192 ${note}`);
+      try {
+        const { execSync: execSync6 } = await import("node:child_process");
+        const syncScript = path25.join(process.cwd(), "scripts", "sync-seo-brain-to-obsidian.sh");
+        if (fs25.existsSync(syncScript)) {
+          execSync6(`bash "${syncScript}"`, { stdio: "inherit", cwd: process.cwd() });
+        }
+      } catch {
+      }
+    } catch (e) {
+      console.log("Research log not available:", e instanceof Error ? e.message : "error");
     }
     return;
   }

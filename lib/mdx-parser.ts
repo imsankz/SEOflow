@@ -2,7 +2,7 @@
  * MDX parsing and content analysis utilities.
  */
 import type { Frontmatter, Section } from './types';
-import { getSiteUrl } from './config';
+import { getSiteAuthor, getSiteUrl } from './config';
 
 /**
  * Parse an MDX string into frontmatter and body content.
@@ -50,6 +50,15 @@ export function parseMdx(raw: string): { frontmatter: Frontmatter; fmBlock: stri
     }
   }
   if (inMultiline && currentKey) frontmatter[currentKey] = multilineVal.join(' ').trim();
+
+  // Normalize author + date so schema generators never emit 'Unknown' or
+  // today's date for posts that store the date as publishedDate/datePublished
+  // (Keystatic MDX) and omit the author field (site config fallback).
+  frontmatter.author = frontmatter.author || getSiteAuthor();
+  if (!frontmatter.date) {
+    frontmatter.date = frontmatter.publishedDate || frontmatter.datePublished || frontmatter.updated || frontmatter.lastModified;
+  }
+
   return { frontmatter, fmBlock, content };
 }
 

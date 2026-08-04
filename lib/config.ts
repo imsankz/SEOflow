@@ -196,6 +196,7 @@ export function getPostsDir() { return loadConfig().postsDir; }
 export function getAuditLogPath() { return loadConfig().auditLogPath; }
 export function getKeywordCachePath() { return loadConfig().keywordCachePath; }
 export function getSiteUrl() { return loadConfig().siteUrl; }
+export function getSiteAuthor() { return loadConfig().author; }
 export function getToolTriggers() { return loadConfig().tools; }
 export function getBookingTriggers() { return loadConfig().bookings; }
 export function getAffiliateTriggers() { return loadConfig().affiliates || []; }

@@ -120,7 +120,12 @@ function dateStr(daysAgo: number): string {
 function getSiteProperty(): string {
   // Allow env override for sc-domain: properties
   const envOverride = process.env.GSC_SITE_URL;
-  if (envOverride) return envOverride.endsWith('/') ? envOverride : envOverride + '/';
+  if (envOverride) {
+    // sc-domain: properties are exact strings — never append a trailing slash.
+    // http(s) URLs may keep or gain a trailing slash.
+    if (envOverride.startsWith('sc-domain:')) return envOverride;
+    return envOverride.endsWith('/') ? envOverride : envOverride + '/';
+  }
   const cfg = loadConfig();
   const url = cfg.siteUrl.startsWith('http') ? cfg.siteUrl : `https://${cfg.siteUrl}`;
   return url.endsWith('/') ? url : url + '/';

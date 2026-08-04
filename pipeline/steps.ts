@@ -878,6 +878,8 @@ export async function processPost(
 
   const raw = fs.readFileSync(filePath, 'utf8');
   const parsed = parseMdx(raw);
+  // Inject slug from the filename so schema @id / mainEntityOfPage URLs resolve.
+  if (!parsed.frontmatter.slug) parsed.frontmatter.slug = slug;
   const gsc = gscPages[slug] || {};
   const input: StepInput = { slug, filePath, content: parsed.content, frontmatter: parsed.frontmatter, gsc };
 
@@ -1122,6 +1124,8 @@ function loadPost(slug: string): { filePath: string; content: string; frontmatte
 function readPostFile(filePath: string): { filePath: string; content: string; frontmatter: Frontmatter } {
   const raw = fs.readFileSync(filePath, 'utf-8');
   const { frontmatter, content } = parseMdx(raw);
+  // Inject slug from the filename so schema @id / mainEntityOfPage URLs resolve.
+  if (!frontmatter.slug) frontmatter.slug = path.basename(filePath, path.extname(filePath));
   return { filePath, content, frontmatter };
 }
 

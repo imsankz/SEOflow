@@ -6,6 +6,7 @@
  */
 
 import type { Frontmatter } from './types';
+import { getSiteAuthor, getSiteUrl } from './config';
 
 export interface SchemaData {
   '@context': 'https://schema.org';
@@ -14,6 +15,35 @@ export interface SchemaData {
 }
 
 export type SchemaType = 'Article' | 'FAQPage' | 'Product' | 'LocalBusiness' | 'TravelGuide' | 'Review' | 'WebSite' | 'WebPage' | 'Organization' | 'BlogPosting' | 'NewsArticle' | 'Service' | 'Event' | 'JobPosting' | 'Course' | 'DiscussionForumPosting';
+
+/**
+ * Resolve the author name: frontmatter author → site config author → fallback.
+ * Prevents emitting '"name": "Unknown"' for sites whose posts don't carry an
+ * author field in frontmatter (e.g. Keystatic MDX).
+ */
+function resolveAuthor(fm: Frontmatter): string {
+  return fm.author || getSiteAuthor() || 'Unknown';
+}
+
+/**
+ * Resolve the publish date from any supported frontmatter key. Sites using
+ * Keystatic MDX store the date as `publishedDate` (not `date`), which the
+ * parser normalizes — this chain covers direct callers too.
+ */
+function resolveDate(fm: Frontmatter): string {
+  return fm.date || fm.publishedDate || fm.datePublished || fm.lastModified || new Date().toISOString().split('T')[0];
+}
+
+/**
+ * Absolute page URL for @id / url fields. siteUrl configs are often
+ * domain-only ("letsgogermany.com") — normalize to https and honor the
+ * pillar-prefixed URL structure (/{pillar}/{slug}) when present.
+ */
+function resolvePageUrl(fm: Frontmatter): string {
+  const base = getSiteUrl().replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  if (!fm.slug) return `https://${base}`;
+  return fm.pillar ? `https://${base}/${fm.pillar}/${fm.slug}` : `https://${base}/${fm.slug}`;
+}
 
 /**
  * Detects schema type from frontmatter or content
@@ -79,13 +109,13 @@ export function generateArticleSchema(fm: Frontmatter): SchemaData {
     description: fm.description || '',
     author: {
       '@type': 'Person',
-      name: fm.author || 'Unknown',
+      name: resolveAuthor(fm),
     },
-    datePublished: fm.date || new Date().toISOString().split('T')[0],
-    dateModified: fm.lastModified || fm.date || new Date().toISOString().split('T')[0],
+    datePublished: resolveDate(fm),
+    dateModified: resolveDate(fm),
     mainEntityOfPage: {
       '@type': 'WebPage',
-      '@id': fm.slug || '',
+      '@id': resolvePageUrl(fm),
     },
   };
 
@@ -218,9 +248,9 @@ export function generateReviewSchema(fm: Frontmatter): SchemaData {
     },
     author: {
       '@type': 'Person',
-      name: fm.author || 'Unknown',
+      name: resolveAuthor(fm),
     },
-    datePublished: fm.date || new Date().toISOString().split('T')[0],
+    datePublished: resolveDate(fm),
   };
 
   if (fm.rating) {
@@ -279,7 +309,7 @@ export function generateWebPageSchema(fm: Frontmatter): SchemaData {
     '@type': 'WebPage',
     name: fm.title || '',
     description: fm.description || '',
-    url: fm.slug || '',
+    url: resolvePageUrl(fm),
   };
 }
 
@@ -325,13 +355,13 @@ export function generateBlogPostingSchema(fm: Frontmatter): SchemaData {
     description: fm.description || '',
     author: {
       '@type': 'Person',
-      name: fm.author || 'Unknown',
+      name: resolveAuthor(fm),
     },
-    datePublished: fm.date || new Date().toISOString().split('T')[0],
-    dateModified: fm.lastModified || fm.date || new Date().toISOString().split('T')[0],
+    datePublished: resolveDate(fm),
+    dateModified: resolveDate(fm),
     mainEntityOfPage: {
       '@type': 'WebPage',
-      '@id': fm.slug || '',
+      '@id': resolvePageUrl(fm),
     },
   };
 
@@ -357,13 +387,13 @@ export function generateNewsArticleSchema(fm: Frontmatter): SchemaData {
     description: fm.description || '',
     author: {
       '@type': 'Person',
-      name: fm.author || 'Unknown',
+      name: resolveAuthor(fm),
     },
-    datePublished: fm.date || new Date().toISOString().split('T')[0],
-    dateModified: fm.lastModified || fm.date || new Date().toISOString().split('T')[0],
+    datePublished: resolveDate(fm),
+    dateModified: resolveDate(fm),
     mainEntityOfPage: {
       '@type': 'WebPage',
-      '@id': fm.slug || '',
+      '@id': resolvePageUrl(fm),
     },
     publisher: {
       '@type': 'Organization',
@@ -503,10 +533,10 @@ export function generateDiscussionForumPostingSchema(fm: Frontmatter): SchemaDat
     description: fm.description || '',
     author: {
       '@type': 'Person',
-      name: fm.author || 'Unknown',
+      name: resolveAuthor(fm),
     },
-    datePublished: fm.date || new Date().toISOString().split('T')[0],
-    dateModified: fm.lastModified || fm.date || new Date().toISOString().split('T')[0],
+    datePublished: resolveDate(fm),
+    dateModified: resolveDate(fm),
   };
 }
 
