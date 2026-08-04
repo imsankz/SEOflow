@@ -436,6 +436,16 @@ export async function runPipeline(): Promise<void> {
       const note = recordResearch(topic, kind, topic, source);
       console.log(`📝 Research logged: ${topic}`);
       console.log(`   → ${note}`);
+      // Mirror to Obsidian Second Brain (duplicate backup; source of truth stays in vault)
+      try {
+        const { execSync } = await import('node:child_process');
+        const syncScript = path.join(process.cwd(), 'scripts', 'sync-seo-brain-to-obsidian.sh');
+        if (fs.existsSync(syncScript)) {
+          execSync(`bash "${syncScript}"`, { stdio: 'inherit', cwd: process.cwd() });
+        }
+      } catch {
+        // Backup is best-effort — never fail the research command over it
+      }
     } catch (e) {
       console.log('Research log not available:', e instanceof Error ? e.message : 'error');
     }
