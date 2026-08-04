@@ -418,6 +418,30 @@ export async function runPipeline(): Promise<void> {
     return;
   }
 
+  // Research log: `seoflow research <topic> [--kind topic|competitor|keyword|finding|decision] [--source URL]`
+  if (VERB === 'research') {
+    try {
+      const { recordResearch, vaultSummary } = await import('./lib/brain/brain-manager');
+      const args = rawArgs.slice(1).filter((a: string) => !a.startsWith('--'));
+      const topic = args.join(' ');
+      const kindArg = rawArgs.find((a: string) => a.startsWith('--kind='));
+      const srcArg = rawArgs.find((a: string) => a.startsWith('--source='));
+      if (!topic) {
+        console.log(vaultSummary());
+        console.log('\nUsage: seoflow research "<topic>" [--kind=competitor|keyword|finding|decision|topic] [--source=<url>]');
+        return;
+      }
+      const kind = (kindArg?.split('=')[1] || 'finding') as 'topic' | 'competitor' | 'keyword' | 'finding' | 'decision';
+      const source = srcArg?.split('=')[1];
+      const note = recordResearch(topic, kind, topic, source);
+      console.log(`📝 Research logged: ${topic}`);
+      console.log(`   → ${note}`);
+    } catch (e) {
+      console.log('Research log not available:', e instanceof Error ? e.message : 'error');
+    }
+    return;
+  }
+
   // Orchestrator-aware audit
   if (VERB === 'orchestrate' || VERB === 'run') {
     const { runPipeline: orchestrate, printPipelineStatus } = await import('./lib/orchestrator');

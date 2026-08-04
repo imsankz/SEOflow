@@ -126,6 +126,30 @@ export function recordSignal(
   recordClaim(getSlug(), `${label}: ${detail}`, url, severity === 'high' ? 'high' : 'medium');
 }
 
+/** Record a research item (topic, competitor analysis, finding) so work is never repeated. */
+export function recordResearch(
+  topic: string,
+  kind: 'topic' | 'competitor' | 'keyword' | 'finding' | 'decision',
+  summary: string,
+  source?: string,
+): string {
+  ensureVault(getSlug());
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48);
+  const folder = kind === 'competitor' ? 'competitors' : kind === 'decision' ? 'decisions' : kind === 'keyword' ? 'keywords' : 'research';
+  const fm: VaultFrontmatter = {
+    title: topic,
+    owner: 'seoflow',
+    confidence: 0.8,
+    approval_status: 'draft',
+    risk_level: 'low',
+    created: dateStr,
+    updated: dateStr,
+  };
+  const body = `## ${topic}\n\n**Kind:** ${kind}\n**Date:** ${dateStr}\n**Summary:** ${summary}\n${source ? `**Source:** ${source}\n` : ''}\n\n*Logged by SeoFlow — check this folder before researching ${topic} again.*`;
+  return writeVaultNote(getSlug(), folder, `${dateStr}-${slug}`, fm, body);
+}
+
 /** Get a summary of everything in the vault */
 export function vaultSummary(): string {
   const baseDir = path.join(process.cwd(), '.seoflow', 'brain', getSlug());
@@ -134,7 +158,7 @@ export function vaultSummary(): string {
   const lines: string[] = ['## Vault Summary'];
 
   // Count notes by type
-  const types = ['audits', 'findings', 'decisions', 'deliverables', 'entities'];
+  const types = ['audits', 'findings', 'decisions', 'deliverables', 'entities', 'research', 'competitors', 'keywords'];
   for (const type of types) {
     const dir = path.join(baseDir, 'wiki', type);
     if (fs.existsSync(dir)) {

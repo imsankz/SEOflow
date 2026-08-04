@@ -33,6 +33,7 @@ export function ensureVault(clientSlug: string, rootDir?: string): string {
     path.join(wd, 'pages'),
     path.join(wd, 'entities'),
     path.join(wd, 'competitors'),
+    path.join(wd, 'research'),
     path.join(wd, 'flows'),
     path.join(wd, 'concepts'),
     path.join(wd, 'deliverables'),

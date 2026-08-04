@@ -48,6 +48,7 @@ const HELP = `
     run <slug>           Alias for orchestrate
     brain                Brain summary + vault stats + next actions
     vault                Vault summary
+    research             Log research/findings to the vault (never re-research)
     validate             Check config + environment
     extensions           List supported optional extensions
     extensions install <id>  Install an optional extension
@@ -90,7 +91,7 @@ const HELP = `
 const RUN_TS_VERBS = new Set([
   'status', 'audit', 'learn', 'learning', 'generate', 'publish',
   'cluster', 'brief', 'orchestrate', 'run',
-  'brain', 'vault', 'validate',
+  'brain', 'vault', 'research', 'validate',
   // Legacy flag-based invocation: seoflow --dry-run, seoflow --mode meta
   '--dry-run', '--mode', '--slug', '--limit', '--reset-slug',
 ]);
