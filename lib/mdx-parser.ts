@@ -1,23 +1,48 @@
 /**
  * MDX parsing and content analysis utilities.
  */
+import yaml from 'js-yaml';
 import type { Frontmatter, Section } from './types';
-import { getSiteAuthor, getSiteUrl } from './config';
+import { getSiteUrl } from './config';
 
 /**
  * Parse an MDX string into frontmatter and body content.
+ *
+ * Uses a real YAML parser (js-yaml, JSON schema) so quoted/multiline scalars,
+ * lists, booleans and integers round-trip losslessly. JSON schema keeps
+ * YAML timestamps (e.g. `publishedDate: 2024-01-16`) as plain strings.
  */
 export function parseMdx(raw: string): { frontmatter: Frontmatter; fmBlock: string; content: string } {
   const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
   if (!match) return { frontmatter: {}, fmBlock: '', content: raw };
   const fmBlock = match[0];
   const content = raw.slice(fmBlock.length);
+  let frontmatter: Frontmatter = {};
+  try {
+    const parsed = yaml.load(match[1], { schema: yaml.JSON_SCHEMA }) as Record<string, unknown> | undefined;
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      frontmatter = { ...(parsed as Frontmatter) };
+    }
+  } catch {
+    // Defensive fallback: hand-rolled parser for frontmatter a strict YAML
+    // parse rejects. Kept from the original implementation.
+    frontmatter = parseFrontmatterLegacy(match[1]);
+  }
+  return { frontmatter, fmBlock, content };
+}
+
+/**
+ * Legacy line-based frontmatter parser (fallback when yaml.load throws).
+ * NOTE: unlike the original, this does NOT inject author/date keys — schema
+ * generators resolve those via config fallbacks (resolveAuthor/resolveDate).
+ */
+function parseFrontmatterLegacy(block: string): Frontmatter {
   const frontmatter: Frontmatter = {};
-  let currentKey = null;
+  let currentKey: string | null = null;
   let inMultiline = false;
   let multilineVal: string[] = [];
 
-  for (const line of match[1].split('\n')) {
+  for (const line of block.split('\n')) {
     const kv = line.match(/^([a-zA-Z][a-zA-Z0-9_-]*):\s*(.*)$/);
     if (kv) {
       if (inMultiline && currentKey) {
@@ -28,7 +53,6 @@ export function parseMdx(raw: string): { frontmatter: Frontmatter; fmBlock: stri
       currentKey = kv[1];
       let val: any = kv[2].trim();
       if (val === '>-' || val === '>') { inMultiline = true; multilineVal = []; continue; }
-      // Inline bracket array — e.g. tags: ["a", "b", "c"]
       if (val.startsWith('[') && val.endsWith(']')) {
         frontmatter[currentKey] = val
           .slice(1, -1)
@@ -51,39 +75,20 @@ export function parseMdx(raw: string): { frontmatter: Frontmatter; fmBlock: stri
   }
   if (inMultiline && currentKey) frontmatter[currentKey] = multilineVal.join(' ').trim();
 
-  // Normalize author + date so schema generators never emit 'Unknown' or
-  // today's date for posts that store the date as publishedDate/datePublished
-  // (Keystatic MDX) and omit the author field (site config fallback).
-  frontmatter.author = frontmatter.author || getSiteAuthor();
-  if (!frontmatter.date) {
-    frontmatter.date = frontmatter.publishedDate || frontmatter.datePublished || frontmatter.updated || frontmatter.lastModified;
-  }
-
-  return { frontmatter, fmBlock, content };
+  return frontmatter;
 }
 
 /**
  * Rebuild a frontmatter block from a Frontmatter object.
+ * Uses yaml.dump so all values are emitted with correct YAML quoting/escaping
+ * (apostrophes, colons, hashes, multiline scalars, lists). Key order is
+ * preserved (sortKeys: false) and long strings are not folded (lineWidth: -1).
  */
 export function buildFrontmatterBlock(fm: Frontmatter): string {
-  const lines = ['---'];
-  for (const [k, v] of Object.entries(fm)) {
-    if (Array.isArray(v)) {
-      lines.push(`${k}:`);
-      for (const item of v) lines.push(`  - ${JSON.stringify(item)}`);
-    } else if (typeof v === 'string' && v.includes('\n')) {
-      lines.push(`${k}: >-`);
-      for (const l of v.split('\n')) lines.push(`  ${l}`);
-    } else if (typeof v === 'string' && (v.includes(':') || v.includes('#') || v.includes('"'))) {
-      lines.push(`${k}: ${JSON.stringify(v)}`);
-    } else if (typeof v === 'boolean') {
-      lines.push(`${k}: ${v}`);
-    } else {
-      lines.push(`${k}: ${v}`);
-    }
-  }
-  lines.push('---');
-  return lines.join('\n') + '\n';
+  const dumped = yaml
+    .dump(fm, { schema: yaml.JSON_SCHEMA, lineWidth: -1, noRefs: true, sortKeys: false })
+    .trimEnd();
+  return '---\n' + dumped + '\n---\n';
 }
 
 /**

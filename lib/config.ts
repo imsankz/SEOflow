@@ -74,6 +74,24 @@ export interface SeoFlowConfig {
   gscDays?: number;
 
   /**
+   * Schema generation options.
+   * injectBody: whether to inject the generated JSON-LD <script> into the
+   * post body (default: true). Set false for sites that render schema at the
+   * page level (e.g. Next.js pages with their own JsonLd components) —
+   * injecting into MDX bodies there breaks the build or duplicates schema.
+   */
+  schema?: { injectBody?: boolean };
+
+  /**
+   * Frontmatter write policy. Default (permissive): the pipeline may add new
+   * keys (schema, focusKeyword, lastModified) and keeps its internal slug
+   * injection. Set allowNewKeys: false for strict CMS schemas (Keystatic,
+   * Sanity, etc.) that reject unknown keys at build time — the pipeline then
+   * only updates keys that already exist in the post's frontmatter.
+   */
+  frontmatter?: { allowNewKeys?: boolean };
+
+  /**
    * AI usage limits — protect against runaway costs in bulk runs.
    */
   aiLimits?: {
@@ -202,6 +220,7 @@ export function getBookingTriggers() { return loadConfig().bookings; }
 export function getAffiliateTriggers() { return loadConfig().affiliates || []; }
 export function getGapQueuePath() { return loadConfig().gapQueuePath!; }
 export function getImageKitConfig() { return loadConfig().imageKit || null; }
+export function getSchemaInjectBody() { return loadConfig().schema?.injectBody !== false; }
 
 /**
  * Get the most relevant writing sample for a given content type.

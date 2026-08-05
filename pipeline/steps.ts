@@ -92,9 +92,14 @@ export function stepFixFrontmatter(input: StepInput): StepOutput {
   const changes: string[] = [];
   const fm = { ...input.frontmatter };
   const today = new Date().toISOString().split('T')[0];
+  // Never introduce NEW frontmatter keys in strict mode — strict CMS schemas
+  // (Keystatic etc.) reject unknown keys at build time. Default (permissive)
+  // sites keep the original behavior of adding schema/focusKeyword/lastModified.
+  const strictFm = loadConfig().frontmatter?.allowNewKeys === false;
+  const originalKeys = new Set(Object.keys(input.frontmatter));
 
-  // Ensure schema field
-  if (!fm.schema) {
+  // Ensure schema field (strict mode: only if the site's frontmatter already uses it)
+  if (!fm.schema && (!strictFm || originalKeys.has('schema'))) {
     const title = (fm.title || '').toLowerCase();
     const tags = (fm.tags || []).join(' ').toLowerCase();
     if (title.includes('review') || tags.includes('review')) fm.schema = 'Review';
@@ -104,8 +109,9 @@ export function stepFixFrontmatter(input: StepInput): StepOutput {
     changes.push(`Added schema: ${fm.schema}`);
   }
 
-  // Fix description length
-  const desc = fm.description || fm.excerpt || '';
+  // Fix description length (collapse internal whitespace first so multi-line
+  // WordPress-migrated descriptions become clean single-line metas)
+  const desc = (fm.description || fm.excerpt || '').replace(/\s+/g, ' ').trim();
   if (desc.length < 100 || desc.length > 165) {
     if (desc.length > 165) {
       fm.description = desc.slice(0, 158) + '...';
@@ -114,14 +120,14 @@ export function stepFixFrontmatter(input: StepInput): StepOutput {
     if (desc.length < 100) changes.push('FLAG: description too short — needs manual improvement');
   }
 
-  // Ensure focusKeyword
-  if (!fm.focusKeyword && fm.title) {
+  // Ensure focusKeyword (strict mode: only if the site's frontmatter already uses it)
+  if (!fm.focusKeyword && fm.title && (!strictFm || originalKeys.has('focusKeyword'))) {
     fm.focusKeyword = fm.title.split(' ').slice(0, 5).join(' ');
     changes.push(`Added focusKeyword from title`);
   }
 
-  // Update lastModified
-  if (changes.length > 0) {
+  // Update lastModified (strict mode: only if the site's frontmatter already uses it)
+  if (changes.length > 0 && (!strictFm || originalKeys.has('lastModified'))) {
     fm.lastModified = today;
     changes.push(`Updated lastModified to ${today}`);
   }
@@ -258,7 +264,7 @@ export function stepInjectReciprocalLinks(input: StepInput, opts: { dryRun?: boo
     }
 
     if (!opts.dryRun) {
-      const updatedFm = { ...otherFm, lastModified: new Date().toISOString().split('T')[0] };
+      const updatedFm = otherFm.lastModified ? { ...otherFm, lastModified: new Date().toISOString().split('T')[0] } : otherFm;
       const newRaw = buildFrontmatterBlock(updatedFm) + newContent;
       fs.writeFileSync(filePath, newRaw, 'utf8');
     }
@@ -878,6 +884,10 @@ export async function processPost(
 
   const raw = fs.readFileSync(filePath, 'utf8');
   const parsed = parseMdx(raw);
+  // Keys present in the ORIGINAL frontmatter — the write-back at the end must
+  // never add keys the CMS schema doesn't know about (Keystatic rejects them).
+  const originalKeys = new Set(Object.keys(parsed.frontmatter));
+  const strictFm = loadConfig().frontmatter?.allowNewKeys === false;
   // Inject slug from the filename so schema @id / mainEntityOfPage URLs resolve.
   if (!parsed.frontmatter.slug) parsed.frontmatter.slug = slug;
   const gsc = gscPages[slug] || {};
@@ -1062,7 +1072,18 @@ export async function processPost(
 
   if (allChanges.length > 0) {
     if (!dryRun) {
-      const newRaw = buildFrontmatterBlock(state.frontmatter) + state.content;
+      // Strict mode: strip any keys the pipeline injected for internal use
+      // (slug, author, date, ...) that weren't in the original frontmatter —
+      // strict CMS schemas reject unknown keys and would fail the build.
+      const writeFm: Frontmatter = {};
+      if (strictFm) {
+        for (const k of Object.keys(state.frontmatter)) {
+          if (originalKeys.has(k)) writeFm[k] = state.frontmatter[k];
+        }
+      } else {
+        Object.assign(writeFm, state.frontmatter);
+      }
+      const newRaw = buildFrontmatterBlock(writeFm) + state.content;
       fs.writeFileSync(filePath, newRaw, 'utf8');
     }
     console.log(`     ${dryRun ? '[DRY RUN] Would apply' : '✅ Written'} (${allChanges.length} changes)`);

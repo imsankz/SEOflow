@@ -460,6 +460,7 @@ __export(config_exports, {
   getImageSearchFallback: () => getImageSearchFallback,
   getKeywordCachePath: () => getKeywordCachePath,
   getPostsDir: () => getPostsDir,
+  getSchemaInjectBody: () => getSchemaInjectBody,
   getSiteAuthor: () => getSiteAuthor,
   getSiteUrl: () => getSiteUrl,
   getToolTriggers: () => getToolTriggers,
@@ -536,6 +537,9 @@ function getGapQueuePath() {
 }
 function getImageKitConfig() {
   return loadConfig().imageKit || null;
+}
+function getSchemaInjectBody() {
+  return loadConfig().schema?.injectBody !== false;
 }
 function getWritingSample(contentType) {
   const c = loadConfig();
@@ -2044,16 +2048,29 @@ __export(mdx_parser_exports, {
   scorePriority: () => scorePriority,
   sectionNeedsImage: () => sectionNeedsImage
 });
+import yaml from "js-yaml";
 function parseMdx(raw) {
   const match = raw.match(/^---\s*\n([\s\S]*?)\n---\s*\n?/);
   if (!match) return { frontmatter: {}, fmBlock: "", content: raw };
   const fmBlock = match[0];
   const content = raw.slice(fmBlock.length);
+  let frontmatter = {};
+  try {
+    const parsed = yaml.load(match[1], { schema: yaml.JSON_SCHEMA });
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      frontmatter = { ...parsed };
+    }
+  } catch {
+    frontmatter = parseFrontmatterLegacy(match[1]);
+  }
+  return { frontmatter, fmBlock, content };
+}
+function parseFrontmatterLegacy(block) {
   const frontmatter = {};
   let currentKey = null;
   let inMultiline = false;
   let multilineVal = [];
-  for (const line of match[1].split("\n")) {
+  for (const line of block.split("\n")) {
     const kv = line.match(/^([a-zA-Z][a-zA-Z0-9_-]*):\s*(.*)$/);
     if (kv) {
       if (inMultiline && currentKey) {
@@ -2085,31 +2102,11 @@ function parseMdx(raw) {
     }
   }
   if (inMultiline && currentKey) frontmatter[currentKey] = multilineVal.join(" ").trim();
-  frontmatter.author = frontmatter.author || getSiteAuthor();
-  if (!frontmatter.date) {
-    frontmatter.date = frontmatter.publishedDate || frontmatter.datePublished || frontmatter.updated || frontmatter.lastModified;
-  }
-  return { frontmatter, fmBlock, content };
+  return frontmatter;
 }
 function buildFrontmatterBlock(fm) {
-  const lines = ["---"];
-  for (const [k, v] of Object.entries(fm)) {
-    if (Array.isArray(v)) {
-      lines.push(`${k}:`);
-      for (const item of v) lines.push(`  - ${JSON.stringify(item)}`);
-    } else if (typeof v === "string" && v.includes("\n")) {
-      lines.push(`${k}: >-`);
-      for (const l of v.split("\n")) lines.push(`  ${l}`);
-    } else if (typeof v === "string" && (v.includes(":") || v.includes("#") || v.includes('"'))) {
-      lines.push(`${k}: ${JSON.stringify(v)}`);
-    } else if (typeof v === "boolean") {
-      lines.push(`${k}: ${v}`);
-    } else {
-      lines.push(`${k}: ${v}`);
-    }
-  }
-  lines.push("---");
-  return lines.join("\n") + "\n";
+  const dumped = yaml.dump(fm, { schema: yaml.JSON_SCHEMA, lineWidth: -1, noRefs: true, sortKeys: false }).trimEnd();
+  return "---\n" + dumped + "\n---\n";
 }
 function countWords(content) {
   return content.replace(/```[\s\S]*?```/g, "").replace(/<[^>]+>/g, "").replace(/[#*_\[\]()]/g, "").split(/\s+/).filter(Boolean).length;
@@ -6569,14 +6566,16 @@ function processSchema(fm, content) {
   const validation = validateSchema(schema);
   let updatedContent = content;
   const schemaTag = formatSchema(schema);
-  if (existingSchema) {
-    updatedContent = content.replace(/<script type="application\/ld\+json">.*?<\/script>/s, schemaTag);
-  } else {
-    if (content.includes("<head>")) {
-      updatedContent = content.replace("<head>", `<head>
-${schemaTag}`);
+  if (getSchemaInjectBody()) {
+    if (existingSchema) {
+      updatedContent = content.replace(/<script type="application\/ld\+json">.*?<\/script>/s, schemaTag);
     } else {
-      updatedContent = schemaTag + "\n" + content;
+      if (content.includes("<head>")) {
+        updatedContent = content.replace("<head>", `<head>
+${schemaTag}`);
+      } else {
+        updatedContent = schemaTag + "\n" + content;
+      }
     }
   }
   return {
@@ -8194,7 +8193,8 @@ function stepFixFrontmatter(input) {
   const changes = [];
   const fm = { ...input.frontmatter };
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  if (!fm.schema) {
+  const originalKeys = new Set(Object.keys(input.frontmatter));
+  if (!fm.schema && originalKeys.has("schema")) {
     const title = (fm.title || "").toLowerCase();
     const tags = (fm.tags || []).join(" ").toLowerCase();
     if (title.includes("review") || tags.includes("review")) fm.schema = "Review";
@@ -8203,7 +8203,7 @@ function stepFixFrontmatter(input) {
     else fm.schema = "Article";
     changes.push(`Added schema: ${fm.schema}`);
   }
-  const desc = fm.description || fm.excerpt || "";
+  const desc = (fm.description || fm.excerpt || "").replace(/\s+/g, " ").trim();
   if (desc.length < 100 || desc.length > 165) {
     if (desc.length > 165) {
       fm.description = desc.slice(0, 158) + "...";
@@ -8211,11 +8211,11 @@ function stepFixFrontmatter(input) {
     }
     if (desc.length < 100) changes.push("FLAG: description too short \u2014 needs manual improvement");
   }
-  if (!fm.focusKeyword && fm.title) {
+  if (!fm.focusKeyword && fm.title && originalKeys.has("focusKeyword")) {
     fm.focusKeyword = fm.title.split(" ").slice(0, 5).join(" ");
     changes.push(`Added focusKeyword from title`);
   }
-  if (changes.length > 0) {
+  if (changes.length > 0 && originalKeys.has("lastModified")) {
     fm.lastModified = today;
     changes.push(`Updated lastModified to ${today}`);
   }
@@ -8315,7 +8315,7 @@ ${linkLine}
 `;
     }
     if (!opts.dryRun) {
-      const updatedFm = { ...otherFm, lastModified: (/* @__PURE__ */ new Date()).toISOString().split("T")[0] };
+      const updatedFm = otherFm.lastModified ? { ...otherFm, lastModified: (/* @__PURE__ */ new Date()).toISOString().split("T")[0] } : otherFm;
       const newRaw = buildFrontmatterBlock(updatedFm) + newContent;
       fs25.writeFileSync(filePath, newRaw, "utf8");
     }
@@ -8793,6 +8793,7 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
   \u{1F4C4} ${sanitizeLog(slug)}`);
   const raw = fs25.readFileSync(filePath, "utf8");
   const parsed = parseMdx(raw);
+  const originalKeys = new Set(Object.keys(parsed.frontmatter));
   if (!parsed.frontmatter.slug) parsed.frontmatter.slug = slug;
   const gsc = gscPages[slug] || {};
   const input = { slug, filePath, content: parsed.content, frontmatter: parsed.frontmatter, gsc };
@@ -8935,7 +8936,11 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
   };
   if (allChanges.length > 0) {
     if (!dryRun) {
-      const newRaw = buildFrontmatterBlock(state.frontmatter) + state.content;
+      const writeFm = {};
+      for (const k of Object.keys(state.frontmatter)) {
+        if (originalKeys.has(k)) writeFm[k] = state.frontmatter[k];
+      }
+      const newRaw = buildFrontmatterBlock(writeFm) + state.content;
       fs25.writeFileSync(filePath, newRaw, "utf8");
     }
     console.log(`     ${dryRun ? "[DRY RUN] Would apply" : "\u2705 Written"} (${allChanges.length} changes)`);

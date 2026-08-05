@@ -6,7 +6,7 @@
  */
 
 import type { Frontmatter } from './types';
-import { getSiteAuthor, getSiteUrl } from './config';
+import { getSchemaInjectBody, getSiteAuthor, getSiteUrl } from './config';
 
 export interface SchemaData {
   '@context': 'https://schema.org';
@@ -784,15 +784,20 @@ export function processSchema(fm: Frontmatter, content: string): {
   let updatedContent = content;
   const schemaTag = formatSchema(schema);
 
-  if (existingSchema) {
-    // Replace existing schema
-    updatedContent = content.replace(/<script type="application\/ld\+json">.*?<\/script>/s, schemaTag);
-  } else {
-    // Add new schema after opening <head> or at beginning of content
-    if (content.includes('<head>')) {
-      updatedContent = content.replace('<head>', `<head>\n${schemaTag}`);
+  // Configurable: sites that render schema at the page level (Next.js JsonLd
+  // components etc.) set `schema.injectBody: false` — injection into the MDX
+  // body would duplicate schema or break their build.
+  if (getSchemaInjectBody()) {
+    if (existingSchema) {
+      // Replace existing schema
+      updatedContent = content.replace(/<script type="application\/ld\+json">.*?<\/script>/s, schemaTag);
     } else {
-      updatedContent = schemaTag + '\n' + content;
+      // Add new schema after opening <head> or at beginning of content
+      if (content.includes('<head>')) {
+        updatedContent = content.replace('<head>', `<head>\n${schemaTag}`);
+      } else {
+        updatedContent = schemaTag + '\n' + content;
+      }
     }
   }
 

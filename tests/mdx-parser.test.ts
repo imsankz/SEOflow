@@ -74,7 +74,8 @@ test('buildFrontmatterBlock: roundtrip preserves all fields', () => {
 test('buildFrontmatterBlock: wraps values with colons in quotes', () => {
   const fm = { description: 'Guide: 10 tips' };
   const block = buildFrontmatterBlock(fm);
-  assert.match(block, /description: "/);
+  // yaml.dump quotes values containing colons — style may be single or double
+  assert.match(block, /description: ['"]Guide: 10 tips['"]/);
 });
 
 // ─── countWords ───────────────────────────────────────────────────────────────
