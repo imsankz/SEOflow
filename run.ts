@@ -787,9 +787,12 @@ export async function runPipeline(): Promise<void> {
   }
 }
 
-// Only auto-run when this file is the direct entry point (not when imported by bin/cli.ts).
+// Only auto-run when this file is the direct entry point (not when bundled into bin/cli.js).
 // The CLI imports runPipeline() and calls it itself — without this guard, the pipeline
 // would run twice (once from this auto-invoke, once from the CLI's explicit call).
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith('run.ts')) {
+// NOTE: only the FILENAME check is reliable — esbuild bundles run.ts INTO dist/bin/cli.js,
+// so an import.meta.url === process.argv[1] comparison is always true inside the bundle
+// and would auto-run the pipeline on every CLI invocation.
+if (process.argv[1]?.endsWith('run.ts') || process.argv[1]?.endsWith('run.js')) {
   runPipeline().catch((e: Error) => { console.error('Fatal:', e?.message || e, e?.stack?.split('\n').slice(0,3).join('\n') || ''); process.exit(1); });
 }

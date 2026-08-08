@@ -2,9 +2,11 @@
 
 All notable changes to SeoFlow will be documented in this file.
 
-## [Unreleased]
+## [0.2.3] — 2026-08-08
 
 ### Fixed
+- **URL audit now works from the npm-installed CLI** — the published package has no `python/` dir, so `npx @imsankz/seoflow audit <url>` silently fell back to HEAD-only signals (empty title/H1/schema/link analysis for every user). Added a pure-Node fetch fallback (Node 18+ `fetch` + regex parser) — zero Python deps, real signals.
+- **Double pipeline execution via the published CLI** — esbuild bundles `run.ts` into `dist/bin/cli.js`, so the `import.meta.url` auto-run guard always matched inside the bundle and ran the whole pipeline twice (duplicate reports, duplicate brain writes). Auto-run now keys on the entry filename only.
 - **Clean Gemini CLI auth failures** — token-level auth errors (stale/ineligible credentials) now print one clear hint per run instead of dumping raw stderr mid-run; the fallback chain takes over silently.
 
 ## [0.2.2] — 2026-08-04

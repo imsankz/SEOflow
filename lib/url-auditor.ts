@@ -126,8 +126,35 @@ function parseHtmlSignals(html: string): {
   return { title, description, canonical, h1, h2, jsonLd: jsonLD, metaRobots, ogTags, links: { internal, external } };
 }
 
+/** Pure-Node fetch fallback — the npm-installed CLI has no python/ dir, so this is
+ *  what makes the zero-setup URL audit actually return signals for strangers. */
+async function nodeFetchSignals(url: string): Promise<PageSignals | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(url, {
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: { 'user-agent': 'Mozilla/5.0 (SeoFlow URL Auditor)' },
+    });
+    clearTimeout(timer);
+    const raw = await res.text();
+    if (!raw) return null;
+    const parsed = parseHtmlSignals(raw);
+    return {
+      url, status: res.status, contentLength: raw.length,
+      title: parsed.title, description: parsed.description,
+      canonical: parsed.canonical, h1: parsed.h1, h2: parsed.h2,
+      robots: '', jsonLd: parsed.jsonLd, hasSchema: parsed.jsonLd.length > 0,
+      metaRobots: parsed.metaRobots, ogTags: parsed.ogTags, links: parsed.links, loadTime: 0,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch page signals — uses fetch_page.py (full HTML), render_page.py as fallback for SPA */
-function fetchPageSignals(url: string): PageSignals {
+async function fetchPageSignals(url: string): Promise<PageSignals> {
   const scriptsDir = path.join(process.cwd(), 'python');
 
   // Primary: fetch_page.py — returns full HTML, fast, no truncation
@@ -191,6 +218,10 @@ function fetchPageSignals(url: string): PageSignals {
       console.log(`     ⚠️  render_page.py failed: ${e instanceof Error ? e.message.slice(0, 100) : 'unknown'}`);
     }
   }
+
+  // Pure-Node fallback — no python/ required (npm-installed CLI path)
+  const nodeSignals = await nodeFetchSignals(url);
+  if (nodeSignals) return nodeSignals;
 
   return basicFetchSignals(url);
 }
@@ -355,7 +386,7 @@ export async function auditUrl(url: string): Promise<URLAuditResult> {
   console.log('     📡 Fetching page signals...');
   let signals: PageSignals;
   try {
-    signals = fetchPageSignals(url);
+    signals = await fetchPageSignals(url);
     changes.push(`Fetched ${url} (HTTP ${signals.status})`);
   } catch (e) {
     signals = { url, status: 0, contentLength: 0, title: '', description: '', canonical: '', h1: [], h2: [], robots: '', jsonLd: [], hasSchema: false, metaRobots: '', ogTags: {}, links: { internal: 0, external: 0 }, loadTime: 0, error: e instanceof Error ? e.message : 'Fetch failed' };
