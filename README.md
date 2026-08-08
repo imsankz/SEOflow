@@ -35,6 +35,8 @@ npx @imsankz/seoflow audit https://example.com
 
 You'll get a health score, missing-meta signals, schema check, link structure, and an AI-written action plan saved to `.seoflow/reports/`.
 
+![SeoFlow URL audit report](docs/screenshots/audit-report.png)
+
 ### Full pipeline install (one-liner)
 
 ```bash

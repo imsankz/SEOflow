@@ -35,6 +35,7 @@
     "build": "node build.mjs",
     "dev": "node build.mjs --watch",
     "prepublishOnly": "node build.mjs",
+    "publish:both": "node scripts/publish-both.mjs",
     "seoflow": "npx tsx run.ts",
     "seoflow:init": "npx tsx run.ts init",
     "seoflow:dry": "npx tsx run.ts --dry-run",
