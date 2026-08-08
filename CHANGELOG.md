@@ -2,6 +2,11 @@
 
 All notable changes to SeoFlow will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+- **Clean Gemini CLI auth failures** — token-level auth errors (stale/ineligible credentials) now print one clear hint per run instead of dumping raw stderr mid-run; the fallback chain takes over silently.
+
 ## [0.2.2] — 2026-08-04
 
 ### Added

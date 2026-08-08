@@ -22,6 +22,11 @@ async function spawnChild(bin: string, args: string[], opts: { timeoutMs: number
 
 const BIN = process.env.SEOFLOW_GEMINI_BIN || 'gemini';
 
+// Token-level auth failures (stale/ineligible creds) can't be seen by availability() —
+// they only surface at chat time. Print ONE clean hint per process, then stay quiet so
+// the fallback chain handles the rest without spamming raw auth errors mid-run.
+let authFailureNotified = false;
+
 export const geminiCliProvider: LLMProvider = {
   id: 'gemini-cli',
   name: 'Gemini (via gemini CLI)',
@@ -52,7 +57,14 @@ export const geminiCliProvider: LLMProvider = {
     const started = Date.now();
     const result = await spawnChild(BIN, args, { timeoutMs: input.timeoutMs ?? 120_000, input: composed });
     if (result.exitCode !== 0) {
-      console.error(`     Gemini CLI error (${result.exitCode}): ${result.stderr.slice(0, 200)}`);
+      const err = result.stderr.slice(0, 300);
+      const isAuthFailure = /authenticat|Ineligible|credential|permission|login/i.test(err);
+      if (isAuthFailure && !authFailureNotified) {
+        authFailureNotified = true;
+        console.error(`     ⚠️ Gemini CLI auth failed (stale or ineligible credentials) — run \`gemini auth login\` or set GEMINI_API_KEY. Skipping Gemini CLI for this run.`);
+      } else if (!isAuthFailure) {
+        console.error(`     Gemini CLI error (${result.exitCode}): ${err}`);
+      }
       return null;
     }
     return { text: result.stdout.trim(), durationMs: Date.now() - started };
