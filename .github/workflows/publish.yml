@@ -1,0 +1,42 @@
+name: publish
+
+# Auto-publish to npm when the version bumps on main.
+# Publishes BOTH names: @imsankz/seoflow (scoped) and seoflow (canonical short name).
+# Requires the NPM_TOKEN secret to belong to an account with access to the
+# @imsankz scope (granular token, "Publish" type, "Bypass two-factor
+# authentication" checked). Without scope access npm returns E404 on PUT.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm ci
+      - name: Check if version changed
+        id: version-check
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          NPM_VERSION=$(npm view @imsankz/seoflow version 2>/dev/null || echo '0.0.0')
+          echo "local=${PKG_VERSION}" >> $GITHUB_OUTPUT
+          echo "remote=${NPM_VERSION}" >> $GITHUB_OUTPUT
+          if [ "$PKG_VERSION" != "$NPM_VERSION" ]; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+          fi
+      - name: Publish both names to npm
+        if: steps.version-check.outputs.changed == 'true'
+        run: npm run publish:both
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
