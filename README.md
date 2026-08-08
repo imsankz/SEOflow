@@ -3,7 +3,7 @@
 [![CI](https://github.com/imsankz/seoflow/actions/workflows/ci.yml/badge.svg)](https://github.com/imsankz/seoflow/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/imsankz/seoflow?label=release)](https://github.com/imsankz/seoflow/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![NPM](https://img.shields.io/npm/v/%40imsankz%2Fseoflow?label=%40imsankz%2Fseoflow)](https://www.npmjs.com/package/%40imsankz%2Fseoflow)
+[![NPM](https://img.shields.io/npm/v/seoflow?label=seoflow)](https://www.npmjs.com/package/seoflow)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-green.svg)](./package.json)
 
 **Portable, AI-powered SEO pipeline for any content site.** Drop it into any project, point it at your posts, and get automated frontmatter fixes, internal link injection, image enrichment, AI content audits, fact-checking, and a self-learning priority system that gets smarter every run.
@@ -30,7 +30,7 @@
 No config, no API keys, no clone — just audit any URL:
 
 ```bash
-npx @imsankz/seoflow audit https://example.com
+npx seoflow audit https://example.com
 ```
 
 You'll get a health score, missing-meta signals, schema check, link structure, and an AI-written action plan saved to `.seoflow/reports/`.
@@ -54,11 +54,11 @@ npx seoflow audit    # run pipeline on top 10 priority posts
 ### Via npm (recommended)
 
 ```bash
-npm install -D @imsankz/seoflow
+npm install -D seoflow
 npx seoflow init
 ```
 
-`npx seoflow` resolves to the locally installed CLI. Prefer the full one-liner above if you also want the AI-coding-tool agents installed.
+`npx seoflow` works with zero setup (it fetches the package on demand), and resolves to your locally installed CLI once installed. The legacy scoped package `@imsankz/seoflow` stays published for existing installs. Prefer the full one-liner above if you also want the AI-coding-tool agents installed.
 
 ### From this repo (development)
 
