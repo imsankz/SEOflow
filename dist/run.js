@@ -789,11 +789,12 @@ async function spawnChild2(bin, args, opts) {
     if (opts.input) child.stdin?.end(opts.input);
   });
 }
-var BIN3, geminiCliProvider;
+var BIN3, authFailureNotified, geminiCliProvider;
 var init_gemini_cli = __esm({
   "lib/providers/gemini-cli.ts"() {
     "use strict";
     BIN3 = process.env.SEOFLOW_GEMINI_BIN || "gemini";
+    authFailureNotified = false;
     geminiCliProvider = {
       id: "gemini-cli",
       name: "Gemini (via gemini CLI)",
@@ -826,7 +827,14 @@ ${input.messages.map((m) => `${m.role === "user" ? "" : "(assistant) "}${m.conte
         const started = Date.now();
         const result = await spawnChild2(BIN3, args, { timeoutMs: input.timeoutMs ?? 12e4, input: composed });
         if (result.exitCode !== 0) {
-          console.error(`     Gemini CLI error (${result.exitCode}): ${result.stderr.slice(0, 200)}`);
+          const err = result.stderr.slice(0, 300);
+          const isAuthFailure = /authenticat|Ineligible|credential|permission|login/i.test(err);
+          if (isAuthFailure && !authFailureNotified) {
+            authFailureNotified = true;
+            console.error(`     \u26A0\uFE0F Gemini CLI auth failed (stale or ineligible credentials) \u2014 run \`gemini auth login\` or set GEMINI_API_KEY. Skipping Gemini CLI for this run.`);
+          } else if (!isAuthFailure) {
+            console.error(`     Gemini CLI error (${result.exitCode}): ${err}`);
+          }
           return null;
         }
         return { text: result.stdout.trim(), durationMs: Date.now() - started };
@@ -3080,7 +3088,41 @@ function parseHtmlSignals(html) {
   }
   return { title, description, canonical, h1, h2, jsonLd: jsonLD, metaRobots, ogTags, links: { internal, external } };
 }
-function fetchPageSignals(url) {
+async function nodeFetchSignals(url) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15e3);
+    const res = await fetch(url, {
+      redirect: "follow",
+      signal: controller.signal,
+      headers: { "user-agent": "Mozilla/5.0 (SeoFlow URL Auditor)" }
+    });
+    clearTimeout(timer);
+    const raw = await res.text();
+    if (!raw) return null;
+    const parsed = parseHtmlSignals(raw);
+    return {
+      url,
+      status: res.status,
+      contentLength: raw.length,
+      title: parsed.title,
+      description: parsed.description,
+      canonical: parsed.canonical,
+      h1: parsed.h1,
+      h2: parsed.h2,
+      robots: "",
+      jsonLd: parsed.jsonLd,
+      hasSchema: parsed.jsonLd.length > 0,
+      metaRobots: parsed.metaRobots,
+      ogTags: parsed.ogTags,
+      links: parsed.links,
+      loadTime: 0
+    };
+  } catch {
+    return null;
+  }
+}
+async function fetchPageSignals(url) {
   const scriptsDir = path17.join(process.cwd(), "python");
   const fetchPath = path17.join(scriptsDir, "fetch_page.py");
   if (fs18.existsSync(fetchPath)) {
@@ -3170,6 +3212,8 @@ function fetchPageSignals(url) {
       console.log(`     \u26A0\uFE0F  render_page.py failed: ${e instanceof Error ? e.message.slice(0, 100) : "unknown"}`);
     }
   }
+  const nodeSignals = await nodeFetchSignals(url);
+  if (nodeSignals) return nodeSignals;
   return basicFetchSignals(url);
 }
 function basicFetchSignals(url) {
@@ -3306,7 +3350,7 @@ async function auditUrl(url) {
   console.log("     \u{1F4E1} Fetching page signals...");
   let signals;
   try {
-    signals = fetchPageSignals(url);
+    signals = await fetchPageSignals(url);
     changes.push(`Fetched ${url} (HTTP ${signals.status})`);
   } catch (e) {
     signals = { url, status: 0, contentLength: 0, title: "", description: "", canonical: "", h1: [], h2: [], robots: "", jsonLd: [], hasSchema: false, metaRobots: "", ogTags: {}, links: { internal: 0, external: 0 }, loadTime: 0, error: e instanceof Error ? e.message : "Fetch failed" };
@@ -7467,8 +7511,9 @@ function stepFixFrontmatter(input) {
   const changes = [];
   const fm = { ...input.frontmatter };
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const strictFm = loadConfig().frontmatter?.allowNewKeys === false;
   const originalKeys = new Set(Object.keys(input.frontmatter));
-  if (!fm.schema && originalKeys.has("schema")) {
+  if (!fm.schema && (!strictFm || originalKeys.has("schema"))) {
     const title = (fm.title || "").toLowerCase();
     const tags = (fm.tags || []).join(" ").toLowerCase();
     if (title.includes("review") || tags.includes("review")) fm.schema = "Review";
@@ -7485,11 +7530,11 @@ function stepFixFrontmatter(input) {
     }
     if (desc.length < 100) changes.push("FLAG: description too short \u2014 needs manual improvement");
   }
-  if (!fm.focusKeyword && fm.title && originalKeys.has("focusKeyword")) {
+  if (!fm.focusKeyword && fm.title && (!strictFm || originalKeys.has("focusKeyword"))) {
     fm.focusKeyword = fm.title.split(" ").slice(0, 5).join(" ");
     changes.push(`Added focusKeyword from title`);
   }
-  if (changes.length > 0 && originalKeys.has("lastModified")) {
+  if (changes.length > 0 && (!strictFm || originalKeys.has("lastModified"))) {
     fm.lastModified = today;
     changes.push(`Updated lastModified to ${today}`);
   }
@@ -8068,6 +8113,7 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
   const raw = fs24.readFileSync(filePath, "utf8");
   const parsed = parseMdx(raw);
   const originalKeys = new Set(Object.keys(parsed.frontmatter));
+  const strictFm = loadConfig().frontmatter?.allowNewKeys === false;
   if (!parsed.frontmatter.slug) parsed.frontmatter.slug = slug;
   const gsc = gscPages[slug] || {};
   const input = { slug, filePath, content: parsed.content, frontmatter: parsed.frontmatter, gsc };
@@ -8211,8 +8257,12 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
   if (allChanges.length > 0) {
     if (!dryRun) {
       const writeFm = {};
-      for (const k of Object.keys(state.frontmatter)) {
-        if (originalKeys.has(k)) writeFm[k] = state.frontmatter[k];
+      if (strictFm) {
+        for (const k of Object.keys(state.frontmatter)) {
+          if (originalKeys.has(k)) writeFm[k] = state.frontmatter[k];
+        }
+      } else {
+        Object.assign(writeFm, state.frontmatter);
       }
       const newRaw = buildFrontmatterBlock(writeFm) + state.content;
       fs24.writeFileSync(filePath, newRaw, "utf8");
@@ -9732,7 +9782,7 @@ ${"\u2550".repeat(60)}`);
     });
   }
 }
-if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith("run.ts")) {
+if (process.argv[1]?.endsWith("run.ts") || process.argv[1]?.endsWith("run.js")) {
   runPipeline2().catch((e) => {
     console.error("Fatal:", e?.message || e, e?.stack?.split("\n").slice(0, 3).join("\n") || "");
     process.exit(1);
