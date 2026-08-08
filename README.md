@@ -1,6 +1,7 @@
 # SeoFlow
 
 [![CI](https://github.com/imsankz/seoflow/actions/workflows/ci.yml/badge.svg)](https://github.com/imsankz/seoflow/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/imsankz/seoflow?label=release)](https://github.com/imsankz/seoflow/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 [![NPM](https://img.shields.io/npm/v/%40imsankz%2Fseoflow?label=%40imsankz%2Fseoflow)](https://www.npmjs.com/package/%40imsankz%2Fseoflow)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-green.svg)](./package.json)
@@ -29,7 +30,7 @@
 No config, no API keys, no clone — just audit any URL:
 
 ```bash
-npx seoflow audit https://example.com
+npx @imsankz/seoflow audit https://example.com
 ```
 
 You'll get a health score, missing-meta signals, schema check, link structure, and an AI-written action plan saved to `.seoflow/reports/`.
@@ -48,12 +49,14 @@ npx seoflow status   # pipeline state + learning summary
 npx seoflow audit    # run pipeline on top 10 priority posts
 ```
 
-### Via npm (after publish)
+### Via npm (recommended)
 
 ```bash
 npm install -D @imsankz/seoflow
 npx seoflow init
 ```
+
+`npx seoflow` resolves to the locally installed CLI. Prefer the full one-liner above if you also want the AI-coding-tool agents installed.
 
 ### From this repo (development)
 
@@ -63,6 +66,8 @@ cd .seoflow && npm install
 npx tsx run.ts init
 npx tsx run.ts audit --dry-run
 ```
+
+Full walkthrough (config, GSC setup, first audit run): **[docs/getting-started.md](./docs/getting-started.md)**.
 
 ---
 
@@ -336,7 +341,7 @@ Covers:
 ```
 seoflow/
   run.ts                # Pipeline CLI entry point
-  bin/cli.ts            # npm package CLI (seoflow init|run|generate|publish|validate|extensions)
+  bin/cli.ts            # npm package CLI — forwards every verb to run.ts (published CLI stays in sync)
   agents/               # Canonical agent definitions (source of truth)
   skills/               # Canonical skill definitions (20+ SEO skills)
   extensions/           # Optional extension packages
