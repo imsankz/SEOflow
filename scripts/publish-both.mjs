@@ -20,6 +20,9 @@ import { fileURLToPath } from 'node:url';
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const pkgPath = path.join(root, 'package.json');
 const dryRun = process.argv.includes('--dry-run');
+// Forward --otp=<code> to npm publish (2FA accounts require a one-time password).
+const otpArg = process.argv.find((a) => a.startsWith('--otp='));
+const otpSuffix = otpArg ? ` --otp=${otpArg.slice('--otp='.length)}` : '';
 
 const original = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 const version = original.version;
@@ -42,7 +45,7 @@ try {
       fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`);
       console.log(`\n📦 package.json name → ${name}`);
     }
-    run(`npm publish --access public`);
+    run(`npm publish --access public${otpSuffix}`);
     console.log(`✅ published ${name}@${version}`);
   }
 } finally {
