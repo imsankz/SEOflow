@@ -7550,7 +7550,7 @@ function stepInjectLinks(input) {
     if (existingLinks.has(trigger.path)) return;
     for (const kw of trigger.keywords) {
       const safeKw = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp(`(?<!\\[.*?)\\b(${safeKw})\\b(?![^[]*?\\])(?![^(]*?\\))`, "i");
+      const pattern = new RegExp(`(?<!\\[.*?)\\b(${safeKw})\\b(?!\\s*=)(?![^[]*?\\])(?![^(]*?\\))`, "i");
       const match = modified.match(pattern);
       if (match) {
         modified = modified.replace(pattern, `[$1](${trigger.path})`);
@@ -7577,7 +7577,7 @@ function stepInjectAffiliates(input) {
     if (existingLinks.has(trigger.url)) continue;
     for (const kw of trigger.keywords) {
       const safeKw = kw.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const pattern = new RegExp(`(?<!\\[.*?)\\b(${safeKw})\\b(?![^[]*?\\])(?![^(]*?\\))`, "i");
+      const pattern = new RegExp(`(?<!\\[.*?)\\b(${safeKw})\\b(?!\\s*=)(?![^[]*?\\])(?![^(]*?\\))`, "i");
       const match = modified.match(pattern);
       if (match) {
         modified = modified.replace(pattern, `[$1](${trigger.url})`);

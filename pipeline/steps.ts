@@ -148,7 +148,10 @@ export function stepInjectLinks(input: StepInput): StepOutput {
 
     for (const kw of trigger.keywords) {
       const safeKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const pattern = new RegExp(`(?<!\\[.*?)\\b(${safeKw})\\b(?![^[]*?\\])(?![^(]*?\\))`, 'i');
+      // (?!\s*=) guard: never match component attribute names (caption="...",
+      // alt="...") — only prose occurrences. Matched-word corruption in
+      // VerifiedData/Image attributes was observed 2026-08-09.
+      const pattern = new RegExp(`(?<!\\[.*?)\\b(${safeKw})\\b(?!\\s*=)(?![^[]*?\\])(?![^(]*?\\))`, 'i');
       const match = modified.match(pattern);
       if (match) {
         modified = modified.replace(pattern, `[$1](${trigger.path})`);
@@ -187,7 +190,10 @@ export function stepInjectAffiliates(input: StepInput): StepOutput {
 
     for (const kw of trigger.keywords) {
       const safeKw = kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const pattern = new RegExp(`(?<!\\[.*?)\\b(${safeKw})\\b(?![^[]*?\\])(?![^(]*?\\))`, 'i');
+      // (?!\s*=) guard: never match component attribute names (caption="...",
+      // alt="...") — only prose occurrences. Matched-word corruption in
+      // VerifiedData/Image attributes was observed 2026-08-09.
+      const pattern = new RegExp(`(?<!\\[.*?)\\b(${safeKw})\\b(?!\\s*=)(?![^[]*?\\])(?![^(]*?\\))`, 'i');
       const match = modified.match(pattern);
       if (match) {
         modified = modified.replace(pattern, `[$1](${trigger.url})`);
