@@ -22,6 +22,12 @@ export interface GeoAuditResult {
   issues: string[];
   warnings: string[];
   quickWins: string[];
+  // BLUF-readiness signals (feature 3 — additive only, never affect score)
+  blufReadiness: {
+    directAnswerFirst40: boolean;  // direct answer in the first 40 words
+    keyFactsTable: boolean;        // markdown table (fact | detail) near the top
+    quickAnswerSection: boolean;   // "Quick Answer"-style H2 section
+  };
 }
 
 const AI_PATTERNS = /(?:as an AI|language model|delve|tapestry|testament|embark|unlock|moreover|furthermore|in conclusion|nestled|bustling|vibrant|picturesque|hidden gem|hassle-free|game-changer|breathtaking|wanderlust|adventure awaits|when it comes to|whether you'?re (?:a |an )?)/gi;
@@ -111,6 +117,19 @@ export function stepGeoAudit(input: StepInput): StepOutput & { data?: GeoAuditRe
   // 7. AI patterns
   const aiPatterns = countAiPatterns(body);
 
+  // ── BLUF-readiness signals (feature 3 — additive only, no score impact) ──
+  // A BLUF-friendly post: leads with the direct answer in the first 40-60
+  // words, packs key facts into a table near the top (easy for AI answer
+  // engines to copy verbatim), and has a "Quick Answer"-style section.
+  const first40 = body.replace(/^#.*$/gm, '').trim().split(/\s+/).slice(0, 40).join(' ');
+  const directAnswerFirst40 = first40.split(/\s+/).length >= 10 &&
+    /(?:is|are|costs|takes|includes|offers|features|starts|runs|located|open|best|top|guide|plan|you can|how to|where to)\b/i.test(first40) &&
+    !/^(when i|i started|i remember|let me|so,|now,|imagine|as a traveler)/i.test(first40.trim());
+  // Markdown table in the first ~2000 chars of the body (skip headings).
+  const topChunk = body.replace(/^#.*$/gm, '').slice(0, 2000);
+  const keyFactsTable = /^\|.+\|$/m.test(topChunk);
+  const quickAnswerSection = /^#{2,3}\s*(Quick Answer|Quick Summary|At a Glance|TL;DR|Bottom Line)/im.test(body);
+
   // ── Score (mirrors seo-geo weighting) ─────────────────────────────────────
   let score = 40; // baseline
   if (answerFirstPass) score += 15;
@@ -165,6 +184,22 @@ export function stepGeoAudit(input: StepInput): StepOutput & { data?: GeoAuditRe
     warnings.push('Few lists/tables — these are the easiest content for a model to copy cleanly.');
   }
 
+  // ── BLUF-readiness warnings/quick wins (feature 3 — additive only) ────────
+  // These never touch the score above; they flag how ready the post is for a
+  // bottom-line-up-front summary and AI-answer extraction.
+  if (!directAnswerFirst40) {
+    warnings.push('No direct answer in the first 40 words — BLUF-friendly posts state the bottom line before the preamble.');
+    quickWins.push('Lead with a 1-2 sentence bottom-line answer in the first 40 words (BLUF).');
+  }
+  if (!keyFactsTable) {
+    warnings.push('No markdown table near the top of the post — AI answer engines copy key-facts tables verbatim.');
+    quickWins.push('Add a Key Facts table (fact | detail) near the top of the post.');
+  }
+  if (!quickAnswerSection) {
+    warnings.push('No Quick Answer section — a "## Quick Answer" paragraph up top makes the verdict instantly quotable.');
+    quickWins.push('Add a "## Quick Answer" section that answers the core question in one paragraph.');
+  }
+
   if (score >= 80) quickWins.push('Post is AI-quotable — ensure it stays fresh (lastModified) since Perplexity rewards recency.');
   changes.push(`GEO audit: ${questionHeadingCount} question headings, ${faqBlocks} FAQ blocks, ${listsAndTables} lists/tables, ${longParagraphs} long paragraphs`);
 
@@ -183,6 +218,11 @@ export function stepGeoAudit(input: StepInput): StepOutput & { data?: GeoAuditRe
       issues,
       warnings,
       quickWins,
+      blufReadiness: {
+        directAnswerFirst40,
+        keyFactsTable,
+        quickAnswerSection,
+      },
     },
   };
 }

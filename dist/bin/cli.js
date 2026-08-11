@@ -680,7 +680,7 @@ async function getAccessToken() {
     return null;
   }
 }
-function gscPost(path29, body, token, quotaProject) {
+function gscPost(path30, body, token, quotaProject) {
   const BASE = "searchconsole.googleapis.com";
   const API = "/webmasters/v3";
   const payload = JSON.stringify(body);
@@ -696,7 +696,7 @@ function gscPost(path29, body, token, quotaProject) {
     const req = https.request(
       {
         hostname: BASE,
-        path: API + path29,
+        path: API + path30,
         method: "POST",
         headers
       },
@@ -738,9 +738,9 @@ function getSiteProperty() {
 }
 function urlToSlug(url) {
   const cfg = loadConfig();
-  const path29 = url.replace(/^https?:\/\/[^/]+/, "");
+  const path30 = url.replace(/^https?:\/\/[^/]+/, "");
   const blogPrefix = cfg.blogPrefix || "/blog/";
-  return path29.replace(new RegExp(`^${blogPrefix}`), "").replace(/\/$/, "");
+  return path30.replace(new RegExp(`^${blogPrefix}`), "").replace(/\/$/, "");
 }
 async function isGscApiAvailable() {
   if (_available !== null) return _available;
@@ -900,8 +900,8 @@ function parseGscPagesFromCsv() {
     const parts = line.split(",");
     if (parts.length < 4) continue;
     const url = parts[cols.url].trim().replace(/"/g, "");
-    const path29 = url.replace(/^https?:\/\/[^/]+/, "");
-    const slug = path29.replace(new RegExp(`^${blogPrefix}`), "").replace(/\/$/, "");
+    const path30 = url.replace(/^https?:\/\/[^/]+/, "");
+    const slug = path30.replace(new RegExp(`^${blogPrefix}`), "").replace(/\/$/, "");
     map[slug] = {
       url,
       clicks: parseInt(parts[cols.clicks]) || 0,
@@ -1576,7 +1576,7 @@ function checkBudget(task) {
   return true;
 }
 function taskToTier(task) {
-  const synthesisTasks = ["content-audit", "seo-review", "generate", "cluster", "fact-check"];
+  const synthesisTasks = ["content-audit", "seo-review", "generate", "cluster", "fact-check", "bluf"];
   return synthesisTasks.includes(task) ? "synthesis" : "routing";
 }
 async function logAiStatus() {
@@ -4610,15 +4610,15 @@ async function generateClusterPlan(seedKeyword) {
   return plan;
 }
 function saveClusterPlan(plan, dir) {
-  const fs28 = __require("fs");
-  const path29 = __require("path");
-  if (!fs28.existsSync(dir)) {
-    fs28.mkdirSync(dir, { recursive: true });
+  const fs29 = __require("fs");
+  const path30 = __require("path");
+  if (!fs29.existsSync(dir)) {
+    fs29.mkdirSync(dir, { recursive: true });
   }
-  const jsonPath = path29.join(dir, "cluster-plan.json");
-  fs28.writeFileSync(jsonPath, JSON.stringify(plan, null, 2));
-  const mdPath = path29.join(dir, "cluster-plan.md");
-  fs28.writeFileSync(mdPath, clusterPlanToMarkdown(plan));
+  const jsonPath = path30.join(dir, "cluster-plan.json");
+  fs29.writeFileSync(jsonPath, JSON.stringify(plan, null, 2));
+  const mdPath = path30.join(dir, "cluster-plan.md");
+  fs29.writeFileSync(mdPath, clusterPlanToMarkdown(plan));
   console.log(`\u2705 Cluster plan saved to ${dir}`);
 }
 function clusterPlanToMarkdown(plan) {
@@ -4899,16 +4899,16 @@ async function generateContentBrief(keyword) {
   return brief;
 }
 function saveContentBrief(brief, dir = "content-briefs") {
-  const fs28 = __require("fs");
-  const path29 = __require("path");
-  if (!fs28.existsSync(dir)) {
-    fs28.mkdirSync(dir, { recursive: true });
+  const fs29 = __require("fs");
+  const path30 = __require("path");
+  if (!fs29.existsSync(dir)) {
+    fs29.mkdirSync(dir, { recursive: true });
   }
   const slug = brief.primaryKeyword.toLowerCase().replace(/\s+/g, "-");
-  const mdPath = path29.join(dir, `${slug}-brief.md`);
-  fs28.writeFileSync(mdPath, contentBriefToMarkdown(brief));
-  const jsonPath = path29.join(dir, `${slug}-brief.json`);
-  fs28.writeFileSync(jsonPath, JSON.stringify(brief, null, 2));
+  const mdPath = path30.join(dir, `${slug}-brief.md`);
+  fs29.writeFileSync(mdPath, contentBriefToMarkdown(brief));
+  const jsonPath = path30.join(dir, `${slug}-brief.json`);
+  fs29.writeFileSync(jsonPath, JSON.stringify(brief, null, 2));
   console.log(`\u2705 Content brief saved to ${dir}`);
 }
 function contentBriefToMarkdown(brief) {
@@ -5802,6 +5802,224 @@ var init_citations = __esm({
   }
 });
 
+// lib/bluf.ts
+var bluf_exports = {};
+__export(bluf_exports, {
+  blufToMarkdown: () => blufToMarkdown,
+  buildBlufPrompt: () => buildBlufPrompt,
+  detectContentType: () => detectContentType,
+  emptyBlufResult: () => emptyBlufResult,
+  generateBluf: () => generateBluf,
+  hasAiKey: () => hasAiKey,
+  loadPostForBluf: () => loadPostForBluf,
+  parseBlufResponse: () => parseBlufResponse,
+  resolvePostFile: () => resolvePostFile,
+  saveBluf: () => saveBluf
+});
+import fs21 from "fs";
+import path21 from "path";
+function hasAiKey() {
+  return !!process.env.GEMINI_API_KEY || !!process.env.OPENROUTER_API_KEY;
+}
+function resolvePostFile(slug) {
+  const postsDir = getPostsDir();
+  const mdxPath = path21.join(postsDir, `${slug}.mdx`);
+  if (fs21.existsSync(mdxPath)) return mdxPath;
+  const mdPath = path21.join(postsDir, `${slug}.md`);
+  if (fs21.existsSync(mdPath)) return mdPath;
+  return null;
+}
+function loadPostForBluf(slug) {
+  const filePath = resolvePostFile(slug);
+  if (!filePath) return null;
+  const raw = fs21.readFileSync(filePath, "utf8");
+  const { frontmatter, content } = parseMdx(raw);
+  return { filePath, frontmatter, content };
+}
+function detectContentType(frontmatter) {
+  const schema = (frontmatter.schema || "").toLowerCase();
+  if (schema.includes("review")) return "review";
+  if (schema.includes("itinerary")) return "itinerary";
+  return frontmatter.category || "guide";
+}
+function buildBlufPrompt(slug, frontmatter, content) {
+  const ai = getAiContext();
+  const contentType = detectContentType(frontmatter);
+  const writingSample = getWritingSample(contentType);
+  const contentDomain = getContentDomain();
+  const title = frontmatter.title || slug;
+  const contentSnippet = content.length > 3e3 ? content.slice(0, 1500) + "\n\n...[middle of post]...\n\n" + content.slice(-800) : content;
+  const voiceSection = writingSample ? `Here is a sample of ${ai.author}'s actual writing voice \u2014 match this tone exactly:
+"${writingSample}"
+` : "";
+  return `You are creating a BLUF (Bottom-Line-Up-Front) summary for a ${contentDomain} post on ${ai.siteUrl} written by ${ai.author}${ai.authorLocation ? `, based in ${ai.authorLocation}` : ""}.
+
+Voice: first-person, practical, authentic, specific. Never generic. Never AI-sounding. Never invent facts \u2014 only summarize what the post actually says. If the post gives specific prices, times, routes, or numbers, keep them in the summary.
+
+${voiceSection}
+Style rules:
+- Short, punchy sentences. Vary length.
+- Specific, grounded observations (not vague praise)
+- Practical details: prices, transit, timing
+- Never use: nestled, delve, vibrant, treasure trove, bustling, hidden gem, breathtaking, truly unique, picturesque, enchanting, captivating, magical, whimsical, wanderlust
+
+POST TITLE: ${title}
+SLUG: ${slug}
+
+CURRENT CONTENT EXCERPT:
+${contentSnippet}
+
+YOUR TASK \u2014 produce an AI-answer-ready summary with:
+1. A BLUF statement: 1-2 sentences that give the bottom line first (the direct answer to the post's core question).
+2. A Quick Answer paragraph: 2-4 sentences answering the core question immediately, no preamble.
+3. A Key Facts table: 4-8 rows of (fact | detail) \u2014 specific numbers, prices, times, routes from the post.
+4. Scannable H2 sections: 3-6 sections, each with a short heading, a 1-2 sentence summary, and 2-4 bullets.
+5. Q/A pairs: 3-5 questions a reader (or an AI assistant) would ask, each with a 2-3 sentence answer.
+
+OUTPUT RULES:
+- Respond with ONLY a raw JSON object \u2014 no explanation, no markdown, no code fences
+- Start your response with { and end with }
+- Use \\n for newlines inside string values
+- Never invent facts that are not in the post
+
+JSON FORMAT:
+{"bluf_statement":"...","quick_answer":"...","key_facts":[{"fact":"...","detail":"..."}],"sections":[{"heading":"...","summary":"...","bullets":["...","..."]}],"qa_pairs":[{"question":"...?","answer":"..."}]}`;
+}
+function emptyBlufResult(slug, title) {
+  return { slug, title, blufStatement: "", quickAnswer: "", keyFacts: [], sections: [], qaPairs: [] };
+}
+function parseBlufResponse(response, slug, title) {
+  const fallback = emptyBlufResult(slug, title);
+  let raw = response.trim();
+  raw = raw.replace(/^```(?:json)?\s*/im, "").replace(/```\s*$/m, "").trim();
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end === -1) return fallback;
+  let data;
+  try {
+    data = JSON.parse(raw.slice(start, end + 1));
+  } catch {
+    return fallback;
+  }
+  if (!data || typeof data !== "object") return fallback;
+  const str = (v) => typeof v === "string" ? v : "";
+  const objList = (v) => Array.isArray(v) ? v.filter((x) => x && typeof x === "object") : [];
+  return {
+    slug,
+    title,
+    blufStatement: str(data.bluf_statement),
+    quickAnswer: str(data.quick_answer),
+    keyFacts: objList(data.key_facts).map((k) => ({ fact: str(k.fact), detail: str(k.detail) })).filter((k) => k.fact || k.detail),
+    sections: objList(data.sections).map((s) => ({
+      heading: str(s.heading),
+      summary: str(s.summary),
+      bullets: Array.isArray(s.bullets) ? s.bullets.map((b) => str(b)).filter(Boolean) : []
+    })).filter((s) => s.heading),
+    qaPairs: objList(data.qa_pairs).map((q) => ({ question: str(q.question), answer: str(q.answer) })).filter((q) => q.question || q.answer)
+  };
+}
+async function generateBluf(slug) {
+  const skip = (message) => ({
+    ...emptyBlufResult(slug, slug),
+    degraded: true,
+    message
+  });
+  if (!hasAiKey()) {
+    return skip("BLUF skipped \u2014 no AI key configured (set GEMINI_API_KEY or OPENROUTER_API_KEY)");
+  }
+  const post = loadPostForBluf(slug);
+  if (!post) {
+    return skip(`BLUF skipped \u2014 post not found: ${slug}`);
+  }
+  const prompt = buildBlufPrompt(slug, post.frontmatter, post.content);
+  const response = await aiChatWithRetry(prompt, "bluf");
+  if (!response) {
+    return skip(`BLUF generation failed for ${slug} after retries`);
+  }
+  return parseBlufResponse(response, slug, post.frontmatter.title || slug);
+}
+function escapeCell(s) {
+  return s.replace(/\|/g, "\\|").replace(/\n/g, " ");
+}
+function blufToMarkdown(result) {
+  let md = `# BLUF: ${result.title}
+
+`;
+  if (result.blufStatement) {
+    md += `> ${result.blufStatement}
+
+`;
+  }
+  if (result.quickAnswer) {
+    md += `## Quick Answer
+
+${result.quickAnswer}
+
+`;
+  }
+  if (result.keyFacts.length > 0) {
+    md += `## Key Facts
+
+| Fact | Detail |
+|------|--------|
+`;
+    for (const kf of result.keyFacts) {
+      md += `| ${escapeCell(kf.fact)} | ${escapeCell(kf.detail)} |
+`;
+    }
+    md += "\n";
+  }
+  if (result.sections.length > 0) {
+    md += `## Scannable Sections
+
+`;
+    for (const s of result.sections) {
+      md += `### ${s.heading}
+
+${s.summary}
+
+`;
+      for (const b of s.bullets) {
+        md += `- ${b}
+`;
+      }
+      md += "\n";
+    }
+  }
+  if (result.qaPairs.length > 0) {
+    md += `## Q&A
+
+`;
+    for (const q of result.qaPairs) {
+      md += `**Q: ${q.question}**
+
+${q.answer}
+
+`;
+    }
+  }
+  md += `---
+*Generated by SeoFlow BLUF \u2014 AI-answer-ready sidecar. Post content was not modified.*
+`;
+  return md;
+}
+function saveBluf(result, dir = ".seoflow/bluf") {
+  fs21.mkdirSync(dir, { recursive: true });
+  const mdPath = path21.join(dir, `${result.slug}.md`);
+  const jsonPath = path21.join(dir, `${result.slug}.json`);
+  fs21.writeFileSync(mdPath, blufToMarkdown(result), "utf8");
+  fs21.writeFileSync(jsonPath, JSON.stringify(result, null, 2), "utf8");
+  return { mdPath, jsonPath };
+}
+var init_bluf = __esm({
+  "lib/bluf.ts"() {
+    "use strict";
+    init_mdx_parser();
+    init_ai_provider();
+    init_config();
+  }
+});
+
 // lib/extensions.ts
 var extensions_exports = {};
 __export(extensions_exports, {
@@ -5810,39 +6028,39 @@ __export(extensions_exports, {
   getSupportedExtensions: () => getSupportedExtensions,
   installExtension: () => installExtension
 });
-import fs21 from "fs";
-import path21 from "path";
+import fs22 from "fs";
+import path22 from "path";
 import { fileURLToPath } from "url";
 function resolveRootDir(rootDir) {
   const base = rootDir || process.cwd();
-  return path21.resolve(base);
+  return path22.resolve(base);
 }
 function getStateFilePath(rootDir) {
   const resolvedRootDir = resolveRootDir(rootDir);
-  return path21.join(resolvedRootDir, ".seoflow", "extensions.json");
+  return path22.join(resolvedRootDir, ".seoflow", "extensions.json");
 }
 function findExtensionBundleRoot(extensionId, rootDir) {
   const candidates = [
-    path21.resolve(resolveRootDir(rootDir), "extensions", extensionId),
-    path21.resolve(path21.dirname(fileURLToPath(import.meta.url)), "..", "extensions", extensionId),
-    path21.resolve(path21.dirname(fileURLToPath(import.meta.url)), "..", "..", "extensions", extensionId)
+    path22.resolve(resolveRootDir(rootDir), "extensions", extensionId),
+    path22.resolve(path22.dirname(fileURLToPath(import.meta.url)), "..", "extensions", extensionId),
+    path22.resolve(path22.dirname(fileURLToPath(import.meta.url)), "..", "..", "extensions", extensionId)
   ];
-  return candidates.find((candidate) => fs21.existsSync(candidate)) || null;
+  return candidates.find((candidate) => fs22.existsSync(candidate)) || null;
 }
 function provisionExtensionBundle(extensionId, rootDir) {
   const resolvedRootDir = resolveRootDir(rootDir);
   const sourceDir = findExtensionBundleRoot(extensionId, resolvedRootDir);
   if (!sourceDir) return;
-  const destinationDir = path21.join(resolvedRootDir, ".seoflow", "extensions", extensionId);
-  fs21.mkdirSync(path21.dirname(destinationDir), { recursive: true });
-  fs21.rmSync(destinationDir, { recursive: true, force: true });
-  fs21.cpSync(sourceDir, destinationDir, { recursive: true });
+  const destinationDir = path22.join(resolvedRootDir, ".seoflow", "extensions", extensionId);
+  fs22.mkdirSync(path22.dirname(destinationDir), { recursive: true });
+  fs22.rmSync(destinationDir, { recursive: true, force: true });
+  fs22.cpSync(sourceDir, destinationDir, { recursive: true });
 }
 function readState(rootDir) {
   const statePath = getStateFilePath(rootDir);
-  if (!fs21.existsSync(statePath)) return {};
+  if (!fs22.existsSync(statePath)) return {};
   try {
-    const parsed = JSON.parse(fs21.readFileSync(statePath, "utf8"));
+    const parsed = JSON.parse(fs22.readFileSync(statePath, "utf8"));
     return parsed;
   } catch {
     return {};
@@ -5850,8 +6068,8 @@ function readState(rootDir) {
 }
 function writeState(rootDir, state) {
   const statePath = getStateFilePath(rootDir);
-  fs21.mkdirSync(path21.dirname(statePath), { recursive: true });
-  fs21.writeFileSync(statePath, JSON.stringify(state, null, 2));
+  fs22.mkdirSync(path22.dirname(statePath), { recursive: true });
+  fs22.writeFileSync(statePath, JSON.stringify(state, null, 2));
 }
 function getSupportedExtensions() {
   return SUPPORTED_EXTENSIONS.map((ext) => ({ ...ext }));
@@ -6002,6 +6220,7 @@ var init_types2 = __esm({
       { id: "quality-audit", name: "Content Quality Audit", phase: "synthesis", dependsOn: ["seo-review"], requiresIntegrations: ["gemini", "openrouter", "anthropic"] },
       { id: "technical-audit", name: "Technical SEO Audit", phase: "synthesis", dependsOn: [], requiresIntegrations: [] },
       { id: "fact-check", name: "Fact Check", phase: "synthesis", dependsOn: ["content-audit"], requiresIntegrations: ["gemini", "openrouter", "anthropic"] },
+      { id: "bluf", name: "BLUF Summary (AI)", phase: "synthesis", dependsOn: [], requiresIntegrations: ["gemini", "openrouter", "anthropic"] },
       // Final
       { id: "reciprocal-links", name: "Reciprocal Internal Links", phase: "final", dependsOn: ["fix-frontmatter"], requiresIntegrations: [] },
       { id: "report-export", name: "Report Export", phase: "final", dependsOn: ["schema-validation", "quality-audit", "technical-audit", "fact-check"], requiresIntegrations: [] },
@@ -6018,11 +6237,11 @@ __export(orchestrator_exports, {
   registerStepRunner: () => registerStepRunner,
   runPipeline: () => runPipeline
 });
-import fs22 from "node:fs";
-import path22 from "node:path";
+import fs23 from "node:fs";
+import path23 from "node:path";
 function loadState() {
   const p = STATE_PATH();
-  if (!fs22.existsSync(p)) {
+  if (!fs23.existsSync(p)) {
     return {
       version: 1,
       lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
@@ -6032,7 +6251,7 @@ function loadState() {
     };
   }
   try {
-    return JSON.parse(fs22.readFileSync(p, "utf-8"));
+    return JSON.parse(fs23.readFileSync(p, "utf-8"));
   } catch {
     return {
       version: 1,
@@ -6045,10 +6264,10 @@ function loadState() {
 }
 function saveState(state) {
   const p = STATE_PATH();
-  const dir = path22.dirname(p);
-  if (!fs22.existsSync(dir)) fs22.mkdirSync(dir, { recursive: true });
+  const dir = path23.dirname(p);
+  if (!fs23.existsSync(dir)) fs23.mkdirSync(dir, { recursive: true });
   state.lastUpdated = (/* @__PURE__ */ new Date()).toISOString();
-  fs22.writeFileSync(p, JSON.stringify(state, null, 2));
+  fs23.writeFileSync(p, JSON.stringify(state, null, 2));
 }
 function createAssignment(slug, step) {
   return {
@@ -6172,9 +6391,9 @@ async function runPipeline(slugs, dryRun = false) {
           totalChanges += changeCount;
           appendLog({ type: "change", summary: `${step.name}: ${changeCount} changes on ${slug}`, slug, step: step.id, changeCount });
           if (result.data) {
-            const sidecarPath = path22.join(process.cwd(), ".seoflow", "data", `${slug}-${step.id}.data.json`);
-            fs22.mkdirSync(path22.dirname(sidecarPath), { recursive: true });
-            fs22.writeFileSync(sidecarPath, JSON.stringify(result.data, null, 2));
+            const sidecarPath = path23.join(process.cwd(), ".seoflow", "data", `${slug}-${step.id}.data.json`);
+            fs23.mkdirSync(path23.dirname(sidecarPath), { recursive: true });
+            fs23.writeFileSync(sidecarPath, JSON.stringify(result.data, null, 2));
           }
         } else {
           updateAssignment(state, assignment.id, {
@@ -6264,7 +6483,7 @@ var init_orchestrator = __esm({
     init_brain();
     init_degradation();
     init_types2();
-    STATE_PATH = () => path22.join(process.cwd(), ".seoflow", "data", "pipeline-state.json");
+    STATE_PATH = () => path23.join(process.cwd(), ".seoflow", "data", "pipeline-state.json");
     stepRunners = /* @__PURE__ */ new Map();
   }
 });
@@ -6440,29 +6659,29 @@ var init_imagekit_client = __esm({
 });
 
 // lib/ubersuggest-client.ts
-import fs23 from "fs";
-import path23 from "path";
+import fs24 from "fs";
+import path24 from "path";
 function cachePath() {
   return loadConfig().keywordCachePath;
 }
 function loadCache() {
   try {
     const p = cachePath();
-    if (fs23.existsSync(p)) {
-      return JSON.parse(fs23.readFileSync(p, "utf8"));
+    if (fs24.existsSync(p)) {
+      return JSON.parse(fs24.readFileSync(p, "utf8"));
     }
   } catch {
   }
   return [];
 }
 function saveCache(cache) {
-  fs23.writeFileSync(cachePath(), JSON.stringify(cache, null, 2));
+  fs24.writeFileSync(cachePath(), JSON.stringify(cache, null, 2));
 }
 function findRoot3() {
   let dir = process.cwd();
   for (let i = 0; i < 10; i++) {
-    if (fs23.existsSync(path23.join(dir, "seoflow.config.json"))) return dir;
-    const p = path23.dirname(dir);
+    if (fs24.existsSync(path24.join(dir, "seoflow.config.json"))) return dir;
+    const p = path24.dirname(dir);
     if (p === dir) break;
     dir = p;
   }
@@ -7452,7 +7671,7 @@ var init_schema = __esm({
 
 // lib/technical/psi.ts
 import { execSync as execSync4 } from "child_process";
-import path24 from "path";
+import path25 from "path";
 function getPSIInstance(apiKey) {
   if (!psiInstance) {
     psiInstance = new PageSpeedInsights(apiKey);
@@ -7461,7 +7680,7 @@ function getPSIInstance(apiKey) {
 }
 function validateUrl(url) {
   try {
-    const scriptPath = path24.join(process.cwd(), "python", "url_safety.py");
+    const scriptPath = path25.join(process.cwd(), "python", "url_safety.py");
     const cmd = `python3 ${scriptPath} --url "${url}"`;
     execSync4(cmd, { encoding: "utf8", stdio: "ignore" });
     return true;
@@ -8451,6 +8670,11 @@ function stepGeoAudit(input) {
   const listsAndTables = countListsAndTables(body);
   const selfContainedWarnings = findSelfContainedWarnings(body);
   const aiPatterns = countAiPatterns(body);
+  const first40 = body.replace(/^#.*$/gm, "").trim().split(/\s+/).slice(0, 40).join(" ");
+  const directAnswerFirst40 = first40.split(/\s+/).length >= 10 && /(?:is|are|costs|takes|includes|offers|features|starts|runs|located|open|best|top|guide|plan|you can|how to|where to)\b/i.test(first40) && !/^(when i|i started|i remember|let me|so,|now,|imagine|as a traveler)/i.test(first40.trim());
+  const topChunk = body.replace(/^#.*$/gm, "").slice(0, 2e3);
+  const keyFactsTable = /^\|.+\|$/m.test(topChunk);
+  const quickAnswerSection = /^#{2,3}\s*(Quick Answer|Quick Summary|At a Glance|TL;DR|Bottom Line)/im.test(body);
   let score = 40;
   if (answerFirstPass) score += 15;
   if (faqBlocks >= 1) score += 10;
@@ -8500,6 +8724,18 @@ function stepGeoAudit(input) {
   if (listsAndTables < 5) {
     warnings.push("Few lists/tables \u2014 these are the easiest content for a model to copy cleanly.");
   }
+  if (!directAnswerFirst40) {
+    warnings.push("No direct answer in the first 40 words \u2014 BLUF-friendly posts state the bottom line before the preamble.");
+    quickWins.push("Lead with a 1-2 sentence bottom-line answer in the first 40 words (BLUF).");
+  }
+  if (!keyFactsTable) {
+    warnings.push("No markdown table near the top of the post \u2014 AI answer engines copy key-facts tables verbatim.");
+    quickWins.push("Add a Key Facts table (fact | detail) near the top of the post.");
+  }
+  if (!quickAnswerSection) {
+    warnings.push('No Quick Answer section \u2014 a "## Quick Answer" paragraph up top makes the verdict instantly quotable.');
+    quickWins.push('Add a "## Quick Answer" section that answers the core question in one paragraph.');
+  }
   if (score >= 80) quickWins.push("Post is AI-quotable \u2014 ensure it stays fresh (lastModified) since Perplexity rewards recency.");
   changes.push(`GEO audit: ${questionHeadingCount} question headings, ${faqBlocks} FAQ blocks, ${listsAndTables} lists/tables, ${longParagraphs} long paragraphs`);
   return {
@@ -8516,7 +8752,12 @@ function stepGeoAudit(input) {
       selfContainedWarnings,
       issues,
       warnings,
-      quickWins
+      quickWins,
+      blufReadiness: {
+        directAnswerFirst40,
+        keyFactsTable,
+        quickAnswerSection
+      }
     }
   };
 }
@@ -8528,9 +8769,33 @@ var init_geo = __esm({
   }
 });
 
+// pipeline/bluf.ts
+async function stepBlufAudit(input) {
+  const result = await generateBluf(input.slug);
+  if (result && !result.degraded && result.blufStatement) {
+    try {
+      saveBluf(result);
+    } catch (e) {
+      console.log(`     \u26A0\uFE0F  BLUF sidecar write failed: ${e instanceof Error ? e.message : "error"}`);
+    }
+  }
+  return {
+    content: input.content,
+    frontmatter: input.frontmatter,
+    changes: [],
+    data: result
+  };
+}
+var init_bluf2 = __esm({
+  "pipeline/bluf.ts"() {
+    "use strict";
+    init_bluf();
+  }
+});
+
 // lib/reports/pdf-generator.ts
-import path25 from "path";
-import fs24 from "fs";
+import path26 from "path";
+import fs25 from "fs";
 var PDFGenerator;
 var init_pdf_generator = __esm({
   "lib/reports/pdf-generator.ts"() {
@@ -8541,12 +8806,12 @@ var init_pdf_generator = __esm({
        * Generates a PDF report using the Claude SEO report generator
        */
       static generate(data, outputPath) {
-        const outputDir = path25.dirname(outputPath);
-        if (!fs24.existsSync(outputDir)) {
-          fs24.mkdirSync(outputDir, { recursive: true });
+        const outputDir = path26.dirname(outputPath);
+        if (!fs25.existsSync(outputDir)) {
+          fs25.mkdirSync(outputDir, { recursive: true });
         }
-        const tempDataPath = path25.join(outputDir, `temp-report-data-${Date.now()}.json`);
-        fs24.writeFileSync(tempDataPath, JSON.stringify(data.data, null, 2));
+        const tempDataPath = path26.join(outputDir, `temp-report-data-${Date.now()}.json`);
+        fs25.writeFileSync(tempDataPath, JSON.stringify(data.data, null, 2));
         try {
           if (!PythonManager.isPythonAvailable()) {
             throw new Error("Python not available - install Python 3.10+");
@@ -8572,7 +8837,7 @@ var init_pdf_generator = __esm({
             timeout: 12e4
             // 2 minutes
           });
-          if (result.code === 0 && fs24.existsSync(outputPath)) {
+          if (result.code === 0 && fs25.existsSync(outputPath)) {
             console.log(`PDF report generated successfully: ${outputPath}`);
             return outputPath;
           } else {
@@ -8583,8 +8848,8 @@ var init_pdf_generator = __esm({
           console.error("PDF generation error:", error);
           throw new Error(`PDF generation failed: ${error}`);
         } finally {
-          if (fs24.existsSync(tempDataPath)) {
-            fs24.unlinkSync(tempDataPath);
+          if (fs25.existsSync(tempDataPath)) {
+            fs25.unlinkSync(tempDataPath);
           }
         }
       }
@@ -8624,8 +8889,8 @@ var init_pdf_generator = __esm({
 
 // lib/reports/reports.ts
 import { execSync as execSync5 } from "child_process";
-import path26 from "path";
-import fs25 from "fs";
+import path27 from "path";
+import fs26 from "fs";
 var ReportGenerator;
 var init_reports = __esm({
   "lib/reports/reports.ts"() {
@@ -8645,18 +8910,18 @@ var init_reports = __esm({
           outputDir = "reports",
           filename = `seoflow-report-${Date.now()}.${format}`
         } = options;
-        if (!fs25.existsSync(outputDir)) {
-          fs25.mkdirSync(outputDir, { recursive: true });
+        if (!fs26.existsSync(outputDir)) {
+          fs26.mkdirSync(outputDir, { recursive: true });
         }
-        const outputPath = path26.join(outputDir, filename);
+        const outputPath = path27.join(outputDir, filename);
         try {
           if (format === "pdf") {
             return PDFGenerator.generateSimpleReport(data, new URL(data.url).hostname, outputPath);
           } else {
-            const scriptPath = path26.join(process.cwd(), "python", "google_report.py");
+            const scriptPath = path27.join(process.cwd(), "python", "google_report.py");
             const cmd = this.buildCommand(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath);
             execSync5(cmd, { encoding: "utf8", stdio: "ignore" });
-            if (fs25.existsSync(outputPath)) {
+            if (fs26.existsSync(outputPath)) {
               console.log(`\u2705 Report generated: ${outputPath}`);
               return outputPath;
             } else {
@@ -8677,7 +8942,7 @@ var init_reports = __esm({
       static buildCommand(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath) {
         const args = [
           "python3",
-          path26.join(process.cwd(), "python", "google_report.py"),
+          path27.join(process.cwd(), "python", "google_report.py"),
           "--url",
           `"${data.url}"`,
           "--score",
@@ -8719,7 +8984,7 @@ var init_reports = __esm({
           version: "1.0",
           data
         };
-        fs25.writeFileSync(outputPath, JSON.stringify(report, null, 2));
+        fs26.writeFileSync(outputPath, JSON.stringify(report, null, 2));
         console.log(`\u2705 Fallback report generated: ${outputPath}`);
         return outputPath;
       }
@@ -8998,8 +9263,8 @@ __export(steps_exports, {
   stepKeywordResearch: () => stepKeywordResearch,
   stepNeuronWriter: () => stepNeuronWriter
 });
-import fs26 from "fs";
-import path27 from "node:path";
+import fs27 from "fs";
+import path28 from "node:path";
 function sanitizeLog2(s) {
   return String(s ?? "").replace(/[\r\n]/g, " ");
 }
@@ -9136,18 +9401,18 @@ function stepInjectReciprocalLinks(input, opts = {}) {
   const mySlug = input.slug;
   const myTags = (input.frontmatter.tags || []).map((t) => String(t).toLowerCase());
   const myTitle = input.frontmatter.title || mySlug;
-  if (myTags.length === 0 || !fs26.existsSync(postsDir)) {
+  if (myTags.length === 0 || !fs27.existsSync(postsDir)) {
     return { content: input.content, frontmatter: input.frontmatter, changes };
   }
-  const candidateFiles = fs26.readdirSync(postsDir).filter((f) => (f.endsWith(".mdx") || f.endsWith(".md")) && f.replace(/\.mdx?$/, "") !== mySlug);
+  const candidateFiles = fs27.readdirSync(postsDir).filter((f) => (f.endsWith(".mdx") || f.endsWith(".md")) && f.replace(/\.mdx?$/, "") !== mySlug);
   let edited = 0;
   for (const file of candidateFiles) {
     if (edited >= maxEdits) break;
-    const filePath = path27.join(postsDir, file);
+    const filePath = path28.join(postsDir, file);
     const otherSlug = file.replace(/\.mdx?$/, "");
     let raw;
     try {
-      raw = fs26.readFileSync(filePath, "utf8");
+      raw = fs27.readFileSync(filePath, "utf8");
     } catch {
       continue;
     }
@@ -9175,7 +9440,7 @@ ${linkLine}
     if (!opts.dryRun) {
       const updatedFm = otherFm.lastModified ? { ...otherFm, lastModified: (/* @__PURE__ */ new Date()).toISOString().split("T")[0] } : otherFm;
       const newRaw = buildFrontmatterBlock(updatedFm) + newContent;
-      fs26.writeFileSync(filePath, newRaw, "utf8");
+      fs27.writeFileSync(filePath, newRaw, "utf8");
     }
     changes.push(`Reciprocal link: added "${myTitle}" to ${otherSlug} Related Guides`);
     edited++;
@@ -9649,7 +9914,7 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
   }
   console.log(`
   \u{1F4C4} ${sanitizeLog2(slug)}`);
-  const raw = fs26.readFileSync(filePath, "utf8");
+  const raw = fs27.readFileSync(filePath, "utf8");
   const parsed = parseMdx(raw);
   const originalKeys = new Set(Object.keys(parsed.frontmatter));
   const strictFm = loadConfig().frontmatter?.allowNewKeys === false;
@@ -9760,6 +10025,16 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
     }
     recordStep(slug, "geo", category, geoResult.changes.length, gsc);
   }
+  if ((mode === "all" || mode === "bluf") && canCallAi()) {
+    const blufResult = await stepBlufAudit({ ...input, content: state.content, frontmatter: state.frontmatter });
+    const data = blufResult.data;
+    if (data && !data.degraded) {
+      if (data.blufStatement) console.log(`     \u{1F4CC} BLUF: ${data.blufStatement.slice(0, 140)}`);
+    } else if (data) {
+      console.log(`     \u23ED  ${sanitizeLog2(data.message || "BLUF skipped")}`);
+    }
+    recordStep(slug, "bluf", category, blufResult.changes.length, gsc);
+  }
   if (mode === "all" || mode === "technical") {
     const result = await stepTechnicalAudit({ ...input, content: state.content, frontmatter: state.frontmatter });
     allChanges.push(...result.changes);
@@ -9804,7 +10079,7 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
         Object.assign(writeFm, state.frontmatter);
       }
       const newRaw = buildFrontmatterBlock(writeFm) + state.content;
-      fs26.writeFileSync(filePath, newRaw, "utf8");
+      fs27.writeFileSync(filePath, newRaw, "utf8");
     }
     console.log(`     ${dryRun ? "[DRY RUN] Would apply" : "\u2705 Written"} (${allChanges.length} changes)`);
     for (const c of allChanges) console.log(`       \u2022 ${c}`);
@@ -9839,20 +10114,20 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
 }
 function loadPost(slug) {
   const postsDir = getPostsDir();
-  const filePath = path27.join(postsDir, `${slug}.mdx`);
+  const filePath = path28.join(postsDir, `${slug}.mdx`);
   if (!filePath.endsWith(".mdx") && !filePath.endsWith(".md")) {
-    const mdxPath = path27.join(postsDir, `${slug}.mdx`);
-    const mdPath = path27.join(postsDir, `${slug}.md`);
-    if (fs26.existsSync(mdxPath)) return readPostFile(mdxPath);
-    if (fs26.existsSync(mdPath)) return readPostFile(mdPath);
+    const mdxPath = path28.join(postsDir, `${slug}.mdx`);
+    const mdPath = path28.join(postsDir, `${slug}.md`);
+    if (fs27.existsSync(mdxPath)) return readPostFile(mdxPath);
+    if (fs27.existsSync(mdPath)) return readPostFile(mdPath);
     return null;
   }
-  return fs26.existsSync(filePath) ? readPostFile(filePath) : null;
+  return fs27.existsSync(filePath) ? readPostFile(filePath) : null;
 }
 function readPostFile(filePath) {
-  const raw = fs26.readFileSync(filePath, "utf-8");
+  const raw = fs27.readFileSync(filePath, "utf-8");
   const { frontmatter, content } = parseMdx(raw);
-  if (!frontmatter.slug) frontmatter.slug = path27.basename(filePath, path27.extname(filePath));
+  if (!frontmatter.slug) frontmatter.slug = path28.basename(filePath, path28.extname(filePath));
   return { filePath, content, frontmatter };
 }
 function registerAllStepRunners() {
@@ -9971,6 +10246,16 @@ function registerAllStepRunners() {
       return { success: false, error: e instanceof Error ? e.message : "Fact check failed" };
     }
   });
+  registerStepRunner("bluf", async (slug) => {
+    try {
+      const post = loadPost(slug);
+      if (!post) return { success: true, changes: [], data: {} };
+      const result = await stepBlufAudit({ slug, filePath: post.filePath, content: post.content, frontmatter: post.frontmatter, gsc: {} });
+      return { success: true, changes: result.changes, data: result.data || {} };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : "BLUF generation failed" };
+    }
+  });
   registerStepRunner("reciprocal-links", async (slug) => {
     try {
       const post = loadPost(slug);
@@ -10060,6 +10345,7 @@ var init_steps = __esm({
     init_technical();
     init_content_quality2();
     init_geo();
+    init_bluf2();
     init_report_export();
     init_orchestrator();
     init_brain();
@@ -10076,8 +10362,8 @@ var run_exports = {};
 __export(run_exports, {
   runPipeline: () => runPipeline2
 });
-import fs27 from "fs";
-import path28 from "path";
+import fs28 from "fs";
+import path29 from "path";
 async function cmdCluster() {
   loadEnv();
   loadConfig();
@@ -10173,6 +10459,74 @@ async function cmdSov() {
   console.log(`   Data: ${getCitationsPaths2().sovPath}
 `);
 }
+async function cmdBluf() {
+  loadEnv();
+  loadConfig();
+  const slug = VERB_ARG || rawArgs.find((arg) => !arg.startsWith("--"));
+  if (!slug) {
+    console.log("\n\u274C No post slug provided");
+    console.log("Usage: seoflow bluf <slug>\n");
+    process.exit(1);
+  }
+  const safeSlug = slug.replace(/[\r\n]/g, " ");
+  console.log(`
+\u{1F4CC} Generating BLUF Summary: "${safeSlug}"`);
+  const { generateBluf: generateBluf2, saveBluf: saveBluf2 } = await Promise.resolve().then(() => (init_bluf(), bluf_exports));
+  const result = await generateBluf2(slug);
+  if (!result || result.degraded) {
+    const message = (result?.message || "BLUF skipped \u2014 no AI key configured").replace(/[\r\n]/g, " ");
+    console.log(`
+\u23ED  ${message}`);
+    console.log("   Set GEMINI_API_KEY or OPENROUTER_API_KEY to enable BLUF summaries.");
+    console.log("");
+    return;
+  }
+  console.log(`
+${"\u2550".repeat(60)}`);
+  console.log(`\u{1F4CC} BLUF SUMMARY: ${result.title}`);
+  console.log(`${"\u2550".repeat(60)}`);
+  if (result.blufStatement) {
+    console.log(`
+${result.blufStatement}
+`);
+  }
+  if (result.quickAnswer) {
+    console.log(`Quick Answer:`);
+    console.log(`${result.quickAnswer}
+`);
+  }
+  if (result.keyFacts.length > 0) {
+    console.log(`Key Facts:`);
+    const factWidth = Math.max("Fact".length, ...result.keyFacts.map((k) => k.fact.length));
+    console.log(`  ${"FACT".padEnd(factWidth)}  DETAIL`);
+    console.log(`  ${"\u2500".repeat(factWidth)}  ${"\u2500".repeat(60)}`);
+    for (const kf of result.keyFacts) {
+      console.log(`  ${kf.fact.padEnd(factWidth)}  ${kf.detail.slice(0, 100)}`);
+    }
+    console.log("");
+  }
+  if (result.sections.length > 0) {
+    console.log(`Scannable Sections:`);
+    for (const s of result.sections) {
+      console.log(`  \u2022 ${s.heading}`);
+      if (s.summary) console.log(`      ${s.summary}`);
+    }
+    console.log("");
+  }
+  if (result.qaPairs.length > 0) {
+    console.log(`Q&A:`);
+    for (const q of result.qaPairs) {
+      console.log(`  Q: ${q.question}`);
+      console.log(`  A: ${q.answer}`);
+    }
+    console.log("");
+  }
+  const { mdPath, jsonPath } = saveBluf2(result);
+  console.log(`\u2705 BLUF summary generated!`);
+  console.log(`   View: cat ${mdPath}`);
+  console.log(`   File: ${jsonPath}`);
+  console.log("");
+}
 async function cmdExtensions() {
   const { formatExtensionStatus: formatExtensionStatus2, getSupportedExtensions: getSupportedExtensions2, installExtension: installExtension2, getExtensionState: getExtensionState2 } = await Promise.resolve().then(() => (init_extensions(), extensions_exports));
   const subcommand = rawArgs[1];
@@ -10207,8 +10561,8 @@ async function cmdExtensions() {
   }
 }
 async function cmdInit() {
-  const configPath = path28.join(process.cwd(), "seoflow.config.json");
-  if (fs27.existsSync(configPath)) {
+  const configPath = path29.join(process.cwd(), "seoflow.config.json");
+  if (fs28.existsSync(configPath)) {
     console.log("\u2713 seoflow.config.json already exists");
     console.log("  Delete it and re-run to reconfigure, or edit it directly.");
     return;
@@ -10216,8 +10570,8 @@ async function cmdInit() {
   console.log("\n  Run the interactive installer:\n");
   console.log("  bash <(curl -s https://raw.githubusercontent.com/imsankz/seoflow/main/install.sh)\n");
   console.log("  Or copy the template and fill it in:");
-  const templatePath = path28.join(process.cwd(), ".seoflow", "seoflow.config.template.json");
-  if (fs27.existsSync(templatePath)) {
+  const templatePath = path29.join(process.cwd(), ".seoflow", "seoflow.config.template.json");
+  if (fs28.existsSync(templatePath)) {
     console.log(`  cp ${templatePath} seoflow.config.json
 `);
   }
@@ -10228,7 +10582,7 @@ async function cmdStatus() {
   const auditLog = loadAuditLog();
   await detectGscSource();
   const postsDir = getPostsDir();
-  const allFiles = fs27.existsSync(postsDir) ? fs27.readdirSync(postsDir).filter((f) => f.endsWith(".mdx")) : [];
+  const allFiles = fs28.existsSync(postsDir) ? fs28.readdirSync(postsDir).filter((f) => f.endsWith(".mdx")) : [];
   const posts = auditLog.posts || {};
   const completed = Object.values(posts).filter((p) => p.status === "completed").length;
   const pending = allFiles.length - completed;
@@ -10293,15 +10647,15 @@ async function cmdStatus() {
 function cmdLearn() {
   loadEnv();
   loadConfig();
-  const learningPath = path28.join(
-    path28.dirname(getAuditLogPath()),
+  const learningPath = path29.join(
+    path29.dirname(getAuditLogPath()),
     "learning.json"
   );
-  if (!fs27.existsSync(learningPath)) {
+  if (!fs28.existsSync(learningPath)) {
     console.log("\n\u26A0\uFE0F  No learning data yet. Run the pipeline on some posts first.\n");
     return;
   }
-  const db = JSON.parse(fs27.readFileSync(learningPath, "utf8"));
+  const db = JSON.parse(fs28.readFileSync(learningPath, "utf8"));
   console.log("\n\u{1F9E0} SeoFlow Learning Insights");
   console.log("\u2500".repeat(60));
   const steps = Object.entries(db.steps || {});
@@ -10335,21 +10689,21 @@ function cmdLearn() {
 function cmdLearningExport(outFile) {
   loadEnv();
   loadConfig();
-  const dataDir = path28.dirname(getAuditLogPath());
-  const learningPath = path28.join(dataDir, "learning.json");
-  const baselinesPath = path28.join(dataDir, "gsc-baselines.json");
+  const dataDir = path29.dirname(getAuditLogPath());
+  const learningPath = path29.join(dataDir, "learning.json");
+  const baselinesPath = path29.join(dataDir, "gsc-baselines.json");
   const bundle = {
     exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
     version: "2.0"
   };
-  if (fs27.existsSync(learningPath)) {
-    bundle.learning = JSON.parse(fs27.readFileSync(learningPath, "utf8"));
+  if (fs28.existsSync(learningPath)) {
+    bundle.learning = JSON.parse(fs28.readFileSync(learningPath, "utf8"));
   }
-  if (fs27.existsSync(baselinesPath)) {
-    bundle.gscBaselines = JSON.parse(fs27.readFileSync(baselinesPath, "utf8"));
+  if (fs28.existsSync(baselinesPath)) {
+    bundle.gscBaselines = JSON.parse(fs28.readFileSync(baselinesPath, "utf8"));
   }
   const dest = outFile || `seoflow-learning-${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.json`;
-  fs27.writeFileSync(dest, JSON.stringify(bundle, null, 2));
+  fs28.writeFileSync(dest, JSON.stringify(bundle, null, 2));
   console.log(`
 \u2705 Learning data exported to: ${dest}`);
   console.log("   Import on another machine: seoflow learning import " + dest + "\n");
@@ -10357,21 +10711,21 @@ function cmdLearningExport(outFile) {
 function cmdLearningImport(inFile) {
   loadEnv();
   loadConfig();
-  if (!inFile || !fs27.existsSync(inFile)) {
+  if (!inFile || !fs28.existsSync(inFile)) {
     console.error(`
 \u274C File not found: ${inFile || "(no file specified)"}`);
     console.error("   Usage: seoflow learning import <file.json>\n");
     process.exit(1);
   }
-  const bundle = JSON.parse(fs27.readFileSync(inFile, "utf8"));
-  const dataDir = path28.dirname(getAuditLogPath());
-  if (!fs27.existsSync(dataDir)) fs27.mkdirSync(dataDir, { recursive: true });
+  const bundle = JSON.parse(fs28.readFileSync(inFile, "utf8"));
+  const dataDir = path29.dirname(getAuditLogPath());
+  if (!fs28.existsSync(dataDir)) fs28.mkdirSync(dataDir, { recursive: true });
   if (bundle.learning) {
-    fs27.writeFileSync(path28.join(dataDir, "learning.json"), JSON.stringify(bundle.learning, null, 2));
+    fs28.writeFileSync(path29.join(dataDir, "learning.json"), JSON.stringify(bundle.learning, null, 2));
     console.log("  \u2705 Imported learning.json");
   }
   if (bundle.gscBaselines) {
-    fs27.writeFileSync(path28.join(dataDir, "gsc-baselines.json"), JSON.stringify(bundle.gscBaselines, null, 2));
+    fs28.writeFileSync(path29.join(dataDir, "gsc-baselines.json"), JSON.stringify(bundle.gscBaselines, null, 2));
     console.log("  \u2705 Imported gsc-baselines.json");
   }
   console.log(`
@@ -10446,8 +10800,8 @@ async function runPipeline2() {
       console.log(`   \u2192 ${note}`);
       try {
         const { execSync: execSync6 } = await import("node:child_process");
-        const syncScript = path28.join(process.cwd(), "scripts", "sync-seo-brain-to-obsidian.sh");
-        if (fs27.existsSync(syncScript)) {
+        const syncScript = path29.join(process.cwd(), "scripts", "sync-seo-brain-to-obsidian.sh");
+        if (fs28.existsSync(syncScript)) {
           execSync6(`bash "${syncScript}"`, { stdio: "inherit", cwd: process.cwd() });
         }
       } catch {
@@ -10501,6 +10855,10 @@ async function runPipeline2() {
     await cmdSov();
     return;
   }
+  if (VERB === "bluf") {
+    await cmdBluf();
+    return;
+  }
   if (VERB === "audit" && VERB_ARG && isUrl(VERB_ARG)) {
     const { auditUrl: auditUrl2 } = await Promise.resolve().then(() => (init_url_auditor(), url_auditor_exports));
     const result = await auditUrl2(VERB_ARG);
@@ -10522,11 +10880,11 @@ ${"\u2550".repeat(60)}`);
 `);
     console.log(result.report);
     if (!DRY_RUN) {
-      const reportsDir = path28.join(process.cwd(), ".seoflow", "reports");
-      if (!fs27.existsSync(reportsDir)) fs27.mkdirSync(reportsDir, { recursive: true });
+      const reportsDir = path29.join(process.cwd(), ".seoflow", "reports");
+      if (!fs28.existsSync(reportsDir)) fs28.mkdirSync(reportsDir, { recursive: true });
       const domain = result.url.replace(/https?:\/\//, "").replace(/[\/:]/g, "_");
       const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      const reportPath = path28.join(reportsDir, `${timestamp}-${domain}.md`);
+      const reportPath = path29.join(reportsDir, `${timestamp}-${domain}.md`);
       const header = `# SEO Audit: ${result.url}
 
 **Date:** ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}
@@ -10538,7 +10896,7 @@ ${"\u2550".repeat(60)}`);
         const { writeDataSidecar: writeDataSidecar2 } = await Promise.resolve().then(() => (init_structured_output(), structured_output_exports));
         writeDataSidecar2(reportPath, result.data);
       }
-      fs27.writeFileSync(reportPath, reportContent);
+      fs28.writeFileSync(reportPath, reportContent);
       console.log(`
 \u{1F4DD} Report saved: ${reportPath}`);
     }
@@ -10654,7 +11012,7 @@ ${"\u2550".repeat(60)}`);
     }
     return;
   }
-  const files = fs27.readdirSync(postsDir).filter((f) => f.endsWith(".mdx"));
+  const files = fs28.readdirSync(postsDir).filter((f) => f.endsWith(".mdx"));
   console.log(`\u{1F4C1} ${files.length} posts
 `);
   let candidates = files.map((f) => {
@@ -10663,7 +11021,7 @@ ${"\u2550".repeat(60)}`);
     const prediction = predictPriority(slug, gsc);
     return {
       slug,
-      filePath: path28.join(postsDir, f),
+      filePath: path29.join(postsDir, f),
       priority: prediction.totalScore || 0,
       gsc,
       patterns: prediction.patterns
@@ -10700,7 +11058,7 @@ ${"\u2500".repeat(60)}`);
         initBrain2();
         const fm = (() => {
           try {
-            const raw = fs27.readFileSync(c.filePath, "utf8");
+            const raw = fs28.readFileSync(c.filePath, "utf8");
             const match = raw.match(/^---\n([\s\S]*?)\n---/);
             return {};
           } catch {
@@ -10717,7 +11075,7 @@ ${"\u2500".repeat(60)}`);
     }
     if (!DRY_RUN && r.after) {
       try {
-        const raw = fs27.readFileSync(c.filePath, "utf8");
+        const raw = fs28.readFileSync(c.filePath, "utf8");
         const parsed = await Promise.resolve().then(() => (init_mdx_parser(), mdx_parser_exports));
         const fm = parsed.parseMdx(raw).frontmatter;
         recordContentSnapshot(c.slug, {
@@ -10825,9 +11183,10 @@ var init_run = __esm({
       if (VERB === "publish") return "publish";
       if (VERB === "cluster") return "cluster";
       if (VERB === "brief") return "brief";
+      if (VERB === "bluf") return "bluf";
       const i = rawArgs.indexOf("--mode");
       const modeArg = i !== -1 ? rawArgs[i + 1] : "all";
-      const validModes = ["all", "meta", "links", "affiliates", "images", "keywords", "neuron", "content", "review", "factcheck", "schema", "technical", "quality", "geo", "report", "reciprocal-links"];
+      const validModes = ["all", "meta", "links", "affiliates", "images", "keywords", "neuron", "content", "review", "factcheck", "schema", "technical", "quality", "geo", "bluf", "report", "reciprocal-links"];
       return validModes.includes(modeArg) ? modeArg : "all";
     })();
     if (process.argv[1]?.endsWith("run.ts") || process.argv[1]?.endsWith("run.js")) {
@@ -10860,6 +11219,7 @@ var HELP = `
     brief <keyword>      SEO content brief
     citations [--topic]  AI citation probe run (ChatGPT/Gemini/Perplexity)
     sov                  Share-of-voice dashboard from citation history
+    bluf <slug>          Generate BLUF summary (bottom-line-up-front)
     orchestrate <slug>   Orchestrator-based pipeline (dependency resolution)
     run <slug>           Alias for orchestrate
     brain                Brain summary + vault stats + next actions

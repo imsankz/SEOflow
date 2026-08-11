@@ -100,6 +100,7 @@ export const ALL_STEPS: StepDefinition[] = [
   { id: 'quality-audit', name: 'Content Quality Audit', phase: 'synthesis', dependsOn: ['seo-review'], requiresIntegrations: ['gemini', 'openrouter', 'anthropic'] },
   { id: 'technical-audit', name: 'Technical SEO Audit', phase: 'synthesis', dependsOn: [], requiresIntegrations: [] },
   { id: 'fact-check', name: 'Fact Check', phase: 'synthesis', dependsOn: ['content-audit'], requiresIntegrations: ['gemini', 'openrouter', 'anthropic'] },
+  { id: 'bluf', name: 'BLUF Summary (AI)', phase: 'synthesis', dependsOn: [], requiresIntegrations: ['gemini', 'openrouter', 'anthropic'] },
 
   // Final
   { id: 'reciprocal-links', name: 'Reciprocal Internal Links', phase: 'final', dependsOn: ['fix-frontmatter'], requiresIntegrations: [] },

@@ -24,6 +24,7 @@ import { processSchema } from '../lib/schema';
 import { stepTechnicalAudit } from './technical';
 import { stepContentQualityAudit } from './content-quality';
 import { stepGeoAudit } from './geo';
+import { stepBlufAudit } from './bluf';
 import { stepExportReport } from './report-export';
 import { registerStepRunner, type StepRunner } from '../lib/orchestrator';
 import { appendLog, recordPostRun } from '../lib/brain';
@@ -1031,6 +1032,20 @@ export async function processPost(
     recordStep(slug, 'geo', category, geoResult.changes.length, gsc);
   }
 
+  // ── Step 8c: BLUF summary generation (read-only sidecar) ───────────────
+  // Never rewrites content — the summary is a .seoflow/bluf/ sidecar.
+  // Gated on canCallAi() so full audits respect the per-post AI budget.
+  if ((mode === 'all' || mode === 'bluf') && canCallAi()) {
+    const blufResult = await stepBlufAudit({ ...input, content: state.content, frontmatter: state.frontmatter });
+    const data = blufResult.data;
+    if (data && !data.degraded) {
+      if (data.blufStatement) console.log(`     📌 BLUF: ${data.blufStatement.slice(0, 140)}`);
+    } else if (data) {
+      console.log(`     ⏭  ${sanitizeLog(data.message || 'BLUF skipped')}`);
+    }
+    recordStep(slug, 'bluf', category, blufResult.changes.length, gsc);
+  }
+
   // ── Step 9: Technical audit ─────────────────────────────────────────────
   if (mode === 'all' || mode === 'technical') {
     const result = await stepTechnicalAudit({ ...input, content: state.content, frontmatter: state.frontmatter });
@@ -1291,6 +1306,18 @@ export function registerAllStepRunners(): void {
       return { success: true, changes: result.changes, data: { verified: result.changes.some(c => c.includes('verified')) } };
     } catch (e) {
       return { success: false, error: e instanceof Error ? e.message : 'Fact check failed' };
+    }
+  });
+
+  // BLUF summary runner (read-only sidecar generation)
+  registerStepRunner('bluf', async (slug: string) => {
+    try {
+      const post = loadPost(slug);
+      if (!post) return { success: true, changes: [], data: {} };
+      const result = await stepBlufAudit({ slug, filePath: post.filePath, content: post.content, frontmatter: post.frontmatter, gsc: {} });
+      return { success: true, changes: result.changes, data: (result.data as Record<string, unknown>) || {} };
+    } catch (e) {
+      return { success: false, error: e instanceof Error ? e.message : 'BLUF generation failed' };
     }
   });
 
