@@ -44,6 +44,8 @@ const HELP = `
     publish [--go]       Publish unpublished posts
     cluster <seed>       Semantic topic cluster plan
     brief <keyword>      SEO content brief
+    citations [--topic]  AI citation probe run (ChatGPT/Gemini/Perplexity)
+    sov                  Share-of-voice dashboard from citation history
     orchestrate <slug>   Orchestrator-based pipeline (dependency resolution)
     run <slug>           Alias for orchestrate
     brain                Brain summary + vault stats + next actions

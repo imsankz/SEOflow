@@ -1344,6 +1344,34 @@ export function registerAllStepRunners(): void {
     }
   });
 
+  // AI Citation probe runner (site-level: probes the buyer prompt pack once per
+  // process, not per post — read-only, changes: [])
+  let citationsRanThisProcess = false;
+  registerStepRunner('citations', async (slug: string) => {
+    if (citationsRanThisProcess) {
+      return { success: true, changes: [], data: { note: 'citations already probed this run' } };
+    }
+    citationsRanThisProcess = true;
+    try {
+      const { runCitationsProbes } = await import('../lib/citations');
+      const run = await runCitationsProbes({});
+      console.log(`   🔎 citations: ${run.probes.length} probes, ${run.budget.callsUsed}/${run.budget.callsCap} calls, est. $${run.budget.costUsd.toFixed(4)}, status ${run.status}`);
+      return {
+        success: true,
+        changes: [],
+        data: {
+          runId: run.id,
+          status: run.status,
+          probes: run.probes.length,
+          cited: run.probes.filter((p) => p.mentionCount > 0).length,
+        },
+      };
+    } catch (e) {
+      if (e instanceof SkipStepError) throw e; // orchestrator marks the step skipped
+      return { success: false, error: e instanceof Error ? e.message : 'Citations probe failed' };
+    }
+  });
+
   appendLog({ type: 'note', summary: 'Step runners registered with orchestrator' });
 }
 

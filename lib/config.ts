@@ -164,6 +164,51 @@ export interface SeoFlowConfig {
     majorCities: string[];
     baseUrl: string;
   };
+
+  /**
+   * AI Citation Tracker + Share-of-Voice dashboard (`seoflow citations` / `seoflow sov`).
+   * Optional — with zero config the feature works using the per-site default buyer
+   * prompt pack and brand-representative model IDs from lib/citations/config.ts.
+   * No new API keys: reuses GEMINI_API_KEY / OPENROUTER_API_KEY from .env.local.
+   */
+  citations?: CitationsConfig;
+}
+
+/** Brand probe targets for the AI Citation Tracker. */
+export type CitationBrand = 'chatgpt' | 'gemini' | 'perplexity';
+
+/**
+ * AI Citation Tracker configuration.
+ *
+ * All fields optional; lib/citations/config.ts fills in defaults so a site with
+ * just a seoflow.config.json + .env.local works with zero changes.
+ */
+export interface CitationsConfig {
+  /** Master switch (default true). */
+  enabled?: boolean;
+  /** Per-brand model override. Keys: chatgpt | gemini | perplexity (+ optional geminiDirect for the direct-API fallback). */
+  models?: Partial<Record<CitationBrand, string>> & { geminiDirect?: string };
+  /** True → probe only :free open-weights models via OpenRouter (perplexity degrades to skipped). */
+  freeOnly?: boolean;
+  /** Max network probes per run (default 30). */
+  perRunCap?: number;
+  /** Max answer tokens requested per probe (default 400). */
+  maxAnswerTokens?: number;
+  /** SOV trend/window lookback in runs (default 30). */
+  windowRuns?: number;
+  /** Override history file path (default <dataDir>/citations-history.json). */
+  historyPath?: string;
+  /** Mention-detection tuning (defaults in lib/citations/config.ts). */
+  detection?: {
+    /** Match the author name too (default false — common-name false-positive magnet). */
+    includeAuthor?: boolean;
+    /** Only count the brand phrase when capitalized, e.g. "Chasing Whereabouts" (default true). */
+    brandNameRequiresCapital?: boolean;
+    /** Max per-match details recorded per probe (default 10). */
+    maxMatchesPerProbe?: number;
+  };
+  /** Topic → buyer prompts to probe. Absent → per-site default pack from research. */
+  topics?: Array<{ name: string; prompts: string[] }>;
 }
 
 const CONFIG_FILE = 'seoflow.config.json';
