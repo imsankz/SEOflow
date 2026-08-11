@@ -90,6 +90,9 @@ Full walkthrough (config, GSC setup, first audit run): **[docs/getting-started.m
 | `seoflow publish --go` | Actually publish top candidates |
 | `seoflow cluster <seed-keyword>` | Generate semantic topic cluster plan |
 | `seoflow brief <keyword>` | Generate SEO content brief |
+| `seoflow citations [--topic <name>] [--limit <n>]` | AI citation probe run — check if ChatGPT/Gemini/Perplexity mention your site |
+| `seoflow sov` | Share-of-voice dashboard from citation history |
+| `seoflow bluf <slug>` | Generate BLUF summary (bottom-line-up-front) for a post |
 | `seoflow orchestrate <slug>` | Orchestrator-based pipeline with dependency resolution |
 | `seoflow run <slug>` | Alias for orchestrate |
 | `seoflow brain` | Brain summary + vault stats + suggested next actions |

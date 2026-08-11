@@ -2,6 +2,13 @@
 
 All notable changes to SeoFlow will be documented in this file.
 
+## [0.3.0] — 2026-08-11
+
+### Added
+- **AI Citation Tracker** — `seoflow citations` probes your buyer-intent prompts across ChatGPT, Gemini, and Perplexity (via OpenRouter, with a Gemini-direct fallback), detects whether each AI mentions your site or brand, and appends every run to `.seoflow/data/citations-history.json`. Zero-cost strategy by default (`citations.freeOnly`), capped at 30 probes per run, and a stdlib-only Python mirror (`python/ai_citation_probe.py`) for scheduled probing. Weekly cron helper included (`scripts/citations-weekly.sh`); runs read-only and respects the shared AI call budget.
+- **Share-of-Voice dashboard** — `seoflow sov` aggregates citation history into a per-topic, per-AI dashboard with trend sparklines, writes `citations-sov.json`, and shows your SOV as mentions/runs per AI engine.
+- **BLUF summary generator** — `seoflow bluf <slug>` generates a bottom-line-up-front summary sidecar for any post: 1-2 sentence BLUF statement, Quick Answer, Key Facts table, scannable sections, and Q/A pairs. Read-only — writes `.seoflow/bluf/<slug>.{md,json}` and never touches your content; also wired into the audit pipeline as `--mode bluf`.
+
 ## [0.2.3] — 2026-08-08
 
 ### Fixed
