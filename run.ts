@@ -13,6 +13,8 @@
  *   seoflow publish [--go]                 Publish unpublished posts
  *   seoflow cluster <seed-keyword>         Generate semantic topic cluster plan
  *   seoflow brief <keyword>                Generate SEO content brief
+ *   seoflow citations [--topic <name>] [--limit <n>]  AI citation probe run (ChatGPT/Gemini/Perplexity)
+ *   seoflow sov                            Share-of-voice dashboard (aggregate citation history)
  *   seoflow extensions                     List supported optional extensions
  *   seoflow extensions install <id>       Install an optional extension
  *   seoflow extensions status             Show installed extension state
@@ -39,7 +41,7 @@ import { scanCandidates, publishBatch } from './lib/publisher';
 import { printValidation } from './lib/validator';
 import { readBrainSummary, appendLog, readBrain, readLog } from './lib/brain';
 import { isUrl } from './lib/url-auditor';
-import { logIntegrationStatus } from './lib/degradation';
+import { logIntegrationStatus, SkipStepError } from './lib/degradation';
 import type { NeuronData } from './lib/types';
 
 // ─── Args ────────────────────────────────────────────────────────────────────
@@ -128,6 +130,60 @@ async function cmdBrief(): Promise<void> {
   console.log(`   Target word count: ${brief.targetWordCount.toLocaleString()} words`);
   console.log(`   Sections: ${brief.outline.length}`);
   console.log('');
+}
+
+// ─── Verb: citations ──────────────────────────────────────────────────────────
+async function cmdCitations(): Promise<void> {
+  loadEnv();
+  const cfg = loadConfig();
+
+  const topic = (() => { const i = rawArgs.indexOf('--topic'); return i !== -1 ? rawArgs[i + 1] : null; })();
+  const limit = (() => { const i = rawArgs.indexOf('--limit'); return i !== -1 ? parseInt(rawArgs[i + 1]) || null : null; })();
+
+  // Standalone verb: the shared AI call counter is ours to use for this run.
+  resetAiCallCounter();
+
+  const { runCitationsProbes, loadHistory, appendRun, formatRunTable } = await import('./lib/citations');
+
+  try {
+    const run = await runCitationsProbes({ topic, limit });
+
+    const history = loadHistory();
+    if (!history.siteUrl) history.siteUrl = cfg.siteUrl;
+    appendRun(history, run);
+
+    for (const line of formatRunTable(run, cfg.siteName)) console.log(line);
+    const aiCalls = getAiCallCount();
+    const budget = cfg.aiLimits?.maxCallsPerRun;
+    console.log(`   ✅ citations: ${run.budget.callsUsed} calls used (cap ${run.budget.callsCap})${budget ? `, AI budget ${aiCalls}/${budget}` : ''}\n`);
+  } catch (e) {
+    if (e instanceof SkipStepError) {
+      console.log(`\n⏭  ${e.message} — skipping citations run (exit 0).\n`);
+      return;
+    }
+    throw e;
+  }
+}
+
+// ─── Verb: sov ────────────────────────────────────────────────────────────────
+async function cmdSov(): Promise<void> {
+  loadEnv();
+  const cfg = loadConfig();
+
+  const { loadHistory, aggregateSov, saveSov, formatSovTable, getCitationsPaths } = await import('./lib/citations');
+
+  const history = loadHistory();
+  if (!history.runs.length) {
+    console.log('\n⏭  No citation history yet — run `seoflow citations` first.\n');
+    return;
+  }
+
+  const windowRuns = cfg.citations?.windowRuns ?? 30;
+  const summary = aggregateSov(history, windowRuns);
+  saveSov(summary);
+
+  for (const line of formatSovTable(summary, cfg.siteName)) console.log(line);
+  console.log(`   Data: ${getCitationsPaths().sovPath}\n`);
 }
 
 // ─── Verb: extensions ───────────────────────────────────────────────────────
@@ -477,6 +533,8 @@ export async function runPipeline(): Promise<void> {
 
   if (VERB === 'cluster') { await cmdCluster(); return; }
   if (VERB === 'brief') { await cmdBrief(); return; }
+  if (VERB === 'citations') { await cmdCitations(); return; }
+  if (VERB === 'sov') { await cmdSov(); return; }
 
   // URL audit mode — single URL, skip file-based pipeline
   if (VERB === 'audit' && VERB_ARG && isUrl(VERB_ARG)) {

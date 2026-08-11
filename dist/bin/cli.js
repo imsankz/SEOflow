@@ -680,7 +680,7 @@ async function getAccessToken() {
     return null;
   }
 }
-function gscPost(path27, body, token, quotaProject) {
+function gscPost(path29, body, token, quotaProject) {
   const BASE = "searchconsole.googleapis.com";
   const API = "/webmasters/v3";
   const payload = JSON.stringify(body);
@@ -696,7 +696,7 @@ function gscPost(path27, body, token, quotaProject) {
     const req = https.request(
       {
         hostname: BASE,
-        path: API + path27,
+        path: API + path29,
         method: "POST",
         headers
       },
@@ -738,9 +738,9 @@ function getSiteProperty() {
 }
 function urlToSlug(url) {
   const cfg = loadConfig();
-  const path27 = url.replace(/^https?:\/\/[^/]+/, "");
+  const path29 = url.replace(/^https?:\/\/[^/]+/, "");
   const blogPrefix = cfg.blogPrefix || "/blog/";
-  return path27.replace(new RegExp(`^${blogPrefix}`), "").replace(/\/$/, "");
+  return path29.replace(new RegExp(`^${blogPrefix}`), "").replace(/\/$/, "");
 }
 async function isGscApiAvailable() {
   if (_available !== null) return _available;
@@ -900,8 +900,8 @@ function parseGscPagesFromCsv() {
     const parts = line.split(",");
     if (parts.length < 4) continue;
     const url = parts[cols.url].trim().replace(/"/g, "");
-    const path27 = url.replace(/^https?:\/\/[^/]+/, "");
-    const slug = path27.replace(new RegExp(`^${blogPrefix}`), "").replace(/\/$/, "");
+    const path29 = url.replace(/^https?:\/\/[^/]+/, "");
+    const slug = path29.replace(new RegExp(`^${blogPrefix}`), "").replace(/\/$/, "");
     map[slug] = {
       url,
       clicks: parseInt(parts[cols.clicks]) || 0,
@@ -1559,6 +1559,9 @@ function resetAiCallCounter() {
 }
 function getAiCallCount() {
   return _runCounter.count;
+}
+function bumpAiCallCount() {
+  _runCounter.count++;
 }
 function checkBudget(task) {
   try {
@@ -4384,6 +4387,15 @@ var init_degradation = __esm({
             reason: void 0
           };
         }
+      },
+      "citations-probe": {
+        name: "AI Citation Probe",
+        check: () => ({
+          id: "citations-probe",
+          name: "AI Citation Probe",
+          available: envExists("OPENROUTER_API_KEY") || envExists("GEMINI_API_KEY"),
+          reason: !envExists("OPENROUTER_API_KEY") && !envExists("GEMINI_API_KEY") ? "No AI key \u2014 set OPENROUTER_API_KEY or GEMINI_API_KEY" : void 0
+        })
       }
     };
     SkipStepError = class extends Error {
@@ -4598,15 +4610,15 @@ async function generateClusterPlan(seedKeyword) {
   return plan;
 }
 function saveClusterPlan(plan, dir) {
-  const fs27 = __require("fs");
-  const path27 = __require("path");
-  if (!fs27.existsSync(dir)) {
-    fs27.mkdirSync(dir, { recursive: true });
+  const fs28 = __require("fs");
+  const path29 = __require("path");
+  if (!fs28.existsSync(dir)) {
+    fs28.mkdirSync(dir, { recursive: true });
   }
-  const jsonPath = path27.join(dir, "cluster-plan.json");
-  fs27.writeFileSync(jsonPath, JSON.stringify(plan, null, 2));
-  const mdPath = path27.join(dir, "cluster-plan.md");
-  fs27.writeFileSync(mdPath, clusterPlanToMarkdown(plan));
+  const jsonPath = path29.join(dir, "cluster-plan.json");
+  fs28.writeFileSync(jsonPath, JSON.stringify(plan, null, 2));
+  const mdPath = path29.join(dir, "cluster-plan.md");
+  fs28.writeFileSync(mdPath, clusterPlanToMarkdown(plan));
   console.log(`\u2705 Cluster plan saved to ${dir}`);
 }
 function clusterPlanToMarkdown(plan) {
@@ -4887,16 +4899,16 @@ async function generateContentBrief(keyword) {
   return brief;
 }
 function saveContentBrief(brief, dir = "content-briefs") {
-  const fs27 = __require("fs");
-  const path27 = __require("path");
-  if (!fs27.existsSync(dir)) {
-    fs27.mkdirSync(dir, { recursive: true });
+  const fs28 = __require("fs");
+  const path29 = __require("path");
+  if (!fs28.existsSync(dir)) {
+    fs28.mkdirSync(dir, { recursive: true });
   }
   const slug = brief.primaryKeyword.toLowerCase().replace(/\s+/g, "-");
-  const mdPath = path27.join(dir, `${slug}-brief.md`);
-  fs27.writeFileSync(mdPath, contentBriefToMarkdown(brief));
-  const jsonPath = path27.join(dir, `${slug}-brief.json`);
-  fs27.writeFileSync(jsonPath, JSON.stringify(brief, null, 2));
+  const mdPath = path29.join(dir, `${slug}-brief.md`);
+  fs28.writeFileSync(mdPath, contentBriefToMarkdown(brief));
+  const jsonPath = path29.join(dir, `${slug}-brief.json`);
+  fs28.writeFileSync(jsonPath, JSON.stringify(brief, null, 2));
   console.log(`\u2705 Content brief saved to ${dir}`);
 }
 function contentBriefToMarkdown(brief) {
@@ -4990,6 +5002,806 @@ var init_content_brief = __esm({
   }
 });
 
+// lib/citations/types.ts
+var BRAND_LABELS, BRANDS;
+var init_types = __esm({
+  "lib/citations/types.ts"() {
+    "use strict";
+    BRAND_LABELS = {
+      chatgpt: "ChatGPT",
+      gemini: "Gemini",
+      perplexity: "Perplexity"
+    };
+    BRANDS = ["chatgpt", "gemini", "perplexity"];
+  }
+});
+
+// lib/citations/config.ts
+import path19 from "node:path";
+function estimateCostUsd(modelId, promptTokens, completionTokens) {
+  const p = MODEL_PRICES.find((e) => modelId.includes(e.match)) ?? FALLBACK_PRICE;
+  return promptTokens / 1e6 * p.prompt + completionTokens / 1e6 * p.completion;
+}
+function bareDomain(siteUrl) {
+  return siteUrl.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/+$/, "").toLowerCase();
+}
+function defaultTopicPack(siteUrl) {
+  return SITE_TOPIC_PACKS[bareDomain(siteUrl)] ?? GENERIC_TOPIC_PACK;
+}
+function resolveCitationsConfig(cfg) {
+  const d = DEFAULTS;
+  const models = { ...d.models, ...cfg?.models ?? {} };
+  return {
+    enabled: cfg?.enabled ?? d.enabled,
+    models,
+    geminiDirectModel: cfg?.models?.geminiDirect ?? d.geminiDirectModel,
+    freeOnly: cfg?.freeOnly ?? d.freeOnly,
+    perRunCap: cfg?.perRunCap ?? d.perRunCap,
+    maxAnswerTokens: cfg?.maxAnswerTokens ?? d.maxAnswerTokens,
+    windowRuns: cfg?.windowRuns ?? d.windowRuns,
+    detection: {
+      includeAuthor: cfg?.detection?.includeAuthor ?? d.detection.includeAuthor,
+      brandNameRequiresCapital: cfg?.detection?.brandNameRequiresCapital ?? d.detection.brandNameRequiresCapital,
+      maxMatchesPerProbe: cfg?.detection?.maxMatchesPerProbe ?? d.detection.maxMatchesPerProbe
+    },
+    // Absent topics → per-site default pack (zero-config operation).
+    topics: cfg?.topics && cfg.topics.length > 0 ? cfg.topics : defaultTopicPack(loadConfig().siteUrl)
+  };
+}
+function getCitationsPaths() {
+  const dataDir = path19.dirname(getAuditLogPath());
+  const historyPath = loadConfig().citations?.historyPath ? path19.resolve(loadConfig().citations.historyPath) : path19.join(dataDir, "citations-history.json");
+  return {
+    historyPath,
+    sovPath: path19.join(dataDir, "citations-sov.json")
+  };
+}
+function routeForBrand(brand, resolved) {
+  const hasOr = !!process.env.OPENROUTER_API_KEY;
+  const hasGemini = !!process.env.GEMINI_API_KEY;
+  if (resolved.freeOnly) {
+    if (!hasOr) {
+      return { provider: "none", modelId: FREE_MODELS[brand] || "n/a", skipReason: "freeOnly requires OPENROUTER_API_KEY" };
+    }
+    if (!FREE_MODELS[brand]) {
+      return { provider: "none", modelId: "n/a", skipReason: "no free model for brand" };
+    }
+    return { provider: "openrouter", modelId: FREE_MODELS[brand], skipReason: null };
+  }
+  if (hasOr) {
+    return { provider: "openrouter", modelId: resolved.models[brand], skipReason: null };
+  }
+  if (hasGemini && brand === "gemini") {
+    return { provider: "gemini-direct", modelId: resolved.geminiDirectModel, skipReason: null };
+  }
+  return { provider: "none", modelId: resolved.models[brand], skipReason: "no OPENROUTER_API_KEY" };
+}
+var DEFAULT_MODELS, FREE_MODELS, GEMINI_DIRECT_MODEL, MODEL_PRICES, FALLBACK_PRICE, SITE_TOPIC_PACKS, GENERIC_TOPIC_PACK, DEFAULTS;
+var init_config2 = __esm({
+  "lib/citations/config.ts"() {
+    "use strict";
+    init_config();
+    DEFAULT_MODELS = {
+      chatgpt: "openai/gpt-4o-mini",
+      gemini: "google/gemini-2.5-flash-lite",
+      perplexity: "perplexity/sonar"
+    };
+    FREE_MODELS = {
+      chatgpt: "openai/gpt-oss-20b:free",
+      gemini: "google/gemma-4-31b-it:free",
+      // Perplexity has no :free model — that brand degrades to skipped-key.
+      perplexity: ""
+    };
+    GEMINI_DIRECT_MODEL = "gemini-3.5-flash-lite";
+    MODEL_PRICES = [
+      { match: "gpt-4o-mini", prompt: 0.15, completion: 0.6 },
+      { match: "gpt-4.1-nano", prompt: 0.1, completion: 0.4 },
+      { match: "gpt-oss-20b:free", prompt: 0, completion: 0 },
+      { match: "gemini-2.5-flash-lite", prompt: 0.1, completion: 0.4 },
+      { match: "gemini-2.5-flash", prompt: 0.3, completion: 2.5 },
+      { match: "gemini-3.5-flash-lite", prompt: 0.1, completion: 0.4 },
+      { match: "gemma-4-31b-it:free", prompt: 0, completion: 0 },
+      { match: "sonar-pro-search", prompt: 3, completion: 15 },
+      { match: "sonar-deep-research", prompt: 2, completion: 8 },
+      { match: "sonar", prompt: 1, completion: 1 }
+    ];
+    FALLBACK_PRICE = { prompt: 0.15, completion: 0.6 };
+    SITE_TOPIC_PACKS = {
+      "chasingwhereabouts.com": [
+        {
+          name: "berlin-winter",
+          prompts: [
+            "Best things to do in Berlin in winter for first-time visitors?",
+            "Is Berlin worth visiting in winter? What indoor attractions should I plan around?",
+            "What are the best day trips from Berlin in winter?",
+            "How many days do you need in Berlin - is 3 days enough?"
+          ]
+        },
+        {
+          name: "prague-planning",
+          prompts: [
+            "How many days do you need in Prague?",
+            "Is a 3-day Prague itinerary enough to see the main sights?",
+            "Does Prague use euros or the Czech crown - how should I pay?",
+            "What are the best walking tours in Prague?"
+          ]
+        },
+        {
+          name: "city-passes",
+          prompts: [
+            "Is the Berlin Pass worth it vs the Berlin WelcomeCard?",
+            "Is the Prague Pass worth it? What does it include?",
+            "Which European city pass is actually worth buying?"
+          ]
+        },
+        {
+          name: "italy-itineraries",
+          prompts: [
+            "How many days do you need in Rome - is 3 days enough?",
+            "Is Venice worth visiting in winter?",
+            "How many days do you need in Venice?",
+            "Best 10-day Spain itinerary by train?"
+          ]
+        }
+      ],
+      "thevenicepass.com": [
+        {
+          name: "pass-worth",
+          prompts: [
+            "Is the Venice Pass worth it?",
+            "Is the Venice All-Inclusive Pass worth it? What is included?",
+            "Venice Explorer Pass vs Flex Pass vs Mega Pass - which is best?",
+            "Are there working Venice Pass discount codes?"
+          ]
+        },
+        {
+          name: "tickets-lines",
+          prompts: [
+            "How do I skip the lines at St Mark Basilica?",
+            "Do you need to book Doges Palace tickets in advance?",
+            "Venice museum pass vs single tickets - which is cheaper?",
+            "How do I skip the line at the Doges Palace without a tour?"
+          ]
+        },
+        {
+          name: "itineraries",
+          prompts: [
+            "Is 3 days in Venice enough - what is the best 3-day Venice itinerary?",
+            "Can you do Venice in one day? Best 1-day itinerary?",
+            "What is the best 2-day Venice itinerary?"
+          ]
+        },
+        {
+          name: "venice-practical",
+          prompts: [
+            "Is the Venice vaporetto pass worth it? How much is the water bus?",
+            "What is the dress code for St Mark Basilica?",
+            "When is the best time to visit Venice?",
+            "How much does a gondola ride cost in Venice?"
+          ]
+        }
+      ]
+    };
+    GENERIC_TOPIC_PACK = [
+      {
+        name: "planning",
+        prompts: [
+          "How many days do you need to see the main sights?",
+          "Is it worth buying a city pass for a first-time visit?",
+          "What is the best way to get around on a budget?",
+          "What are the top things to do for first-time visitors?"
+        ]
+      }
+    ];
+    DEFAULTS = {
+      enabled: true,
+      models: { ...DEFAULT_MODELS },
+      geminiDirectModel: GEMINI_DIRECT_MODEL,
+      freeOnly: false,
+      perRunCap: 30,
+      maxAnswerTokens: 400,
+      windowRuns: 30,
+      detection: { includeAuthor: false, brandNameRequiresCapital: true, maxMatchesPerProbe: 10 },
+      topics: []
+    };
+  }
+});
+
+// lib/citations/detect.ts
+function resolveDetectionSettings(cfg) {
+  return {
+    includeAuthor: cfg?.detection?.includeAuthor ?? false,
+    brandNameRequiresCapital: cfg?.detection?.brandNameRequiresCapital ?? true,
+    maxMatchesPerProbe: cfg?.detection?.maxMatchesPerProbe ?? 10
+  };
+}
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+function capitalizeWords(s) {
+  return s.split(/\s+/).filter(Boolean).map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+function buildPatterns(site, settings) {
+  const patterns = [];
+  const domain = site.siteUrl.replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/+$/, "");
+  if (domain) {
+    patterns.push({
+      matchKind: "domain",
+      pattern: domain,
+      regex: new RegExp(`\\b(?:https?:\\/\\/)?(?:www\\.)?${escapeRegex(domain)}\\b`, "gi"),
+      priority: 0
+    });
+  }
+  const brand = site.siteName.trim();
+  if (brand) {
+    const brandSource = settings.brandNameRequiresCapital ? capitalizeWords(brand) : brand;
+    patterns.push({
+      matchKind: "brand",
+      pattern: brandSource,
+      regex: new RegExp(`\\b${brandSource.split(/\s+/).map(escapeRegex).join("\\s+")}\\b`, settings.brandNameRequiresCapital ? "g" : "gi"),
+      priority: 1
+    });
+  }
+  if (settings.includeAuthor) {
+    const author = site.author.trim();
+    if (author) {
+      const authorSource = capitalizeWords(author);
+      patterns.push({
+        matchKind: "author",
+        pattern: authorSource,
+        regex: new RegExp(`\\b${authorSource.split(/\s+/).map(escapeRegex).join("\\s+")}\\b`, "g"),
+        priority: 2
+      });
+    }
+  }
+  return patterns;
+}
+function stripEchoedPrompt(answer, prompt) {
+  if (!prompt) return answer;
+  const idx = answer.indexOf(prompt);
+  if (idx === -1) return answer;
+  return answer.slice(0, idx) + answer.slice(idx + prompt.length);
+}
+function findSourcesSectionIndex(answer) {
+  const re = /^(sources|references|links)\s*:/gim;
+  let idx = -1;
+  let m;
+  while ((m = re.exec(answer)) !== null) {
+    idx = m.index;
+  }
+  return idx;
+}
+function tidyContext(s) {
+  return s.replace(/\s+/g, " ").trim();
+}
+function detectMentions(answer, prompt, site, settings) {
+  const stripped = stripEchoedPrompt(answer, prompt);
+  const sourcesIdx = findSourcesSectionIndex(stripped);
+  const patterns = buildPatterns(site, settings);
+  const raw = [];
+  for (const p of patterns) {
+    for (const m of stripped.matchAll(p.regex)) {
+      raw.push({ matchKind: p.matchKind, pattern: p.pattern, start: m.index ?? 0, end: (m.index ?? 0) + m[0].length, priority: p.priority });
+    }
+  }
+  raw.sort((a, b) => a.start - b.start || a.priority - b.priority);
+  const kept = [];
+  let lastEnd = -1;
+  for (const m of raw) {
+    if (m.start < lastEnd) continue;
+    kept.push(m);
+    lastEnd = m.end;
+  }
+  const mentionCount = kept.length;
+  const mentions = [];
+  for (const m of kept.slice(0, Math.max(1, settings.maxMatchesPerProbe))) {
+    const ctxStart = Math.max(0, m.start - 80);
+    const ctxEnd = Math.min(stripped.length, m.end + 80);
+    mentions.push({
+      matchKind: m.matchKind,
+      pattern: m.pattern,
+      count: 1,
+      context: tidyContext(stripped.slice(ctxStart, ctxEnd)),
+      inSourcesSection: sourcesIdx !== -1 && m.start >= sourcesIdx
+    });
+  }
+  const inlineCitationCount = (stripped.match(/\[\d+\]/g) ?? []).length;
+  return { mentions, mentionCount, inlineCitationCount };
+}
+var init_detect = __esm({
+  "lib/citations/detect.ts"() {
+    "use strict";
+  }
+});
+
+// lib/citations/store.ts
+import fs20 from "node:fs";
+import path20 from "node:path";
+function readJson(p) {
+  if (!fs20.existsSync(p)) return null;
+  try {
+    const raw = JSON.parse(fs20.readFileSync(p, "utf8"));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+function writeJson(p, data) {
+  fs20.mkdirSync(path20.dirname(p), { recursive: true });
+  fs20.writeFileSync(p, JSON.stringify(data, null, 2));
+}
+function isHistoryShape(v) {
+  if (!v || typeof v !== "object") return false;
+  const h = v;
+  return h.version === "1.0" && Array.isArray(h.runs) && typeof h.siteUrl === "string";
+}
+function isSovShape(v) {
+  if (!v || typeof v !== "object") return false;
+  const s = v;
+  return s.version === "1.0" && typeof s.siteUrl === "string" && typeof s.byTopic === "object";
+}
+function loadHistory(historyPath) {
+  const p = historyPath ?? getCitationsPaths().historyPath;
+  const existing = readJson(p);
+  if (existing && isHistoryShape(existing)) {
+    existing.runs = existing.runs.filter((r) => r && typeof r === "object" && Array.isArray(r.probes));
+    return existing;
+  }
+  return { version: "1.0", siteUrl: "", lastRun: null, runs: [] };
+}
+function saveHistory(history, historyPath) {
+  const p = historyPath ?? getCitationsPaths().historyPath;
+  writeJson(p, history);
+}
+function appendRun(history, run, historyPath) {
+  history.runs.push(run);
+  history.lastRun = run.finishedAt;
+  saveHistory(history, historyPath);
+  return history;
+}
+function loadSov(sovPath) {
+  const p = sovPath ?? getCitationsPaths().sovPath;
+  const existing = readJson(p);
+  if (existing && isSovShape(existing)) return existing;
+  return { version: "1.0", siteUrl: "", generatedAt: "", windowRuns: 30, byTopic: {} };
+}
+function saveSov(summary, sovPath) {
+  const p = sovPath ?? getCitationsPaths().sovPath;
+  writeJson(p, summary);
+}
+var init_store = __esm({
+  "lib/citations/store.ts"() {
+    "use strict";
+    init_config2();
+  }
+});
+
+// lib/citations/sov.ts
+function aggregateSov(history, windowRuns = 30) {
+  const runs = history.runs.slice(-Math.max(1, windowRuns));
+  const byTopic = {};
+  const topicOrder = [];
+  for (const run of runs) {
+    for (const probe of run.probes) {
+      if (!byTopic[probe.topic]) {
+        byTopic[probe.topic] = {
+          runs: EMPTY_BRAND_RECORD(),
+          mentions: EMPTY_BRAND_RECORD(),
+          mentionRate: EMPTY_BRAND_RECORD(),
+          lastMentioned: { chatgpt: null, gemini: null, perplexity: null },
+          trend: { chatgpt: [], gemini: [], perplexity: [] }
+        };
+        topicOrder.push(probe.topic);
+      }
+    }
+  }
+  for (const run of runs) {
+    for (const topic of topicOrder) {
+      for (const brand of BRANDS) {
+        const probe = run.probes.find((p) => p.topic === topic && p.brand === brand);
+        if (!probe) continue;
+        const summary = byTopic[topic];
+        summary.runs[brand] += 1;
+        const mentioned = probe.status === "ok" && probe.mentionCount >= 1;
+        if (mentioned) {
+          summary.mentions[brand] += 1;
+          const ts = probe.startedAt || run.startedAt;
+          if (!summary.lastMentioned[brand] || ts > summary.lastMentioned[brand]) {
+            summary.lastMentioned[brand] = ts;
+          }
+        }
+        summary.trend[brand].push(mentioned ? 1 : 0);
+      }
+    }
+  }
+  for (const topic of topicOrder) {
+    const summary = byTopic[topic];
+    for (const brand of BRANDS) {
+      summary.mentionRate[brand] = summary.runs[brand] > 0 ? Number((summary.mentions[brand] / summary.runs[brand]).toFixed(4)) : 0;
+    }
+  }
+  const ordered = {};
+  for (const topic of topicOrder) ordered[topic] = byTopic[topic];
+  return {
+    version: "1.0",
+    siteUrl: history.siteUrl,
+    generatedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    windowRuns: Math.max(1, windowRuns),
+    byTopic: ordered
+  };
+}
+function sparkline(trend) {
+  if (trend.length === 0) return "\u2014";
+  return trend.map((v) => v ? "\u2588" : "\xB7").join("");
+}
+function renderTable(header, rows) {
+  const widths = header.map((h, i) => {
+    if (i === 0) return Math.max(h.length, ...rows.map((r) => r.label.length));
+    return Math.max(h.length, ...rows.map((r) => r.cells[i]?.length ?? 0));
+  });
+  const line = (parts) => parts.map((p, i) => p.padEnd(widths[i])).join("  ").trimEnd();
+  const out = [line(header)];
+  out.push(widths.map((w) => "\u2500".repeat(w)).join("  "));
+  for (const r of rows) out.push(line([r.label, ...r.cells]));
+  return out;
+}
+function formatRunTable(run, siteName) {
+  const topics = [...new Set(run.probes.map((p) => p.topic))];
+  const rows = [];
+  const totals = { chatgpt: 0, gemini: 0, perplexity: 0 };
+  for (const topic of topics) {
+    const cells = [];
+    for (const brand of BRANDS) {
+      const probe = run.probes.find((p) => p.topic === topic && p.brand === brand);
+      if (!probe) {
+        cells.push("\xB7");
+        continue;
+      }
+      if (probe.status === "ok") {
+        totals[brand] += probe.mentionCount;
+        cells.push(`${probe.mentionCount > 0 ? "\u2713" : "\u2717"} ${probe.mentionCount > 0 ? "cited" : "silent"} (${probe.modelId.split("/").pop()})`);
+      } else if (probe.status === "error") {
+        cells.push(`\u26A0 error`);
+      } else {
+        cells.push(`\u23ED ${probe.status === "skipped-budget" ? "budget" : "key"}`);
+      }
+    }
+    rows.push({ label: topic, cells });
+  }
+  const lines = [
+    `
+\u{1F50E} Citation probe run \u2014 ${run.id} (${run.status})`,
+    `   ${siteName} \xB7 ${run.probes.length} probes, ${run.budget.callsUsed}/${run.budget.callsCap} calls, est. $${run.budget.costUsd.toFixed(4)}`,
+    "",
+    ...renderTable(["Topic", "ChatGPT", "Gemini", "Perplexity"], rows),
+    "",
+    `   ${BRAND_LABELS.chatgpt} cited you ${totals.chatgpt}x \xB7 ${BRAND_LABELS.gemini} ${totals.gemini}x \xB7 ${BRAND_LABELS.perplexity} ${totals.perplexity}x`,
+    ""
+  ];
+  return lines;
+}
+function formatSovTable(summary, siteName) {
+  const topics = Object.keys(summary.byTopic);
+  const totals = { chatgpt: 0, gemini: 0, perplexity: 0 };
+  const rows = topics.map((topic) => {
+    const s = summary.byTopic[topic];
+    const cells = BRANDS.map((brand) => {
+      totals[brand] += s.mentions[brand];
+      const rate = (s.mentionRate[brand] * 100).toFixed(0);
+      return `${s.mentions[brand]}/${s.runs[brand]} (${rate}%) ${sparkline(s.trend[brand])}`;
+    });
+    return { label: topic, cells };
+  });
+  const lines = [
+    `
+\u{1F4CA} Share of Voice \u2014 ${siteName} (last ${summary.windowRuns} runs)`,
+    `   Mentions per topic per AI \xB7 SOV = mentions/runs \xB7 \u2588 = mentioned, \xB7 = silent (oldest \u2192 newest)`,
+    "",
+    ...renderTable(["Topic", "ChatGPT", "Gemini", "Perplexity"], rows),
+    "",
+    `   ${BRAND_LABELS.chatgpt} cited you ${totals.chatgpt}x \xB7 ${BRAND_LABELS.gemini} ${totals.gemini}x \xB7 ${BRAND_LABELS.perplexity} ${totals.perplexity}x`,
+    ""
+  ];
+  return lines;
+}
+var EMPTY_BRAND_RECORD;
+var init_sov = __esm({
+  "lib/citations/sov.ts"() {
+    "use strict";
+    init_types();
+    EMPTY_BRAND_RECORD = () => ({ chatgpt: 0, gemini: 0, perplexity: 0 });
+  }
+});
+
+// lib/citations/probe.ts
+function sanitizeLog(s) {
+  return String(s ?? "").replace(/[\r\n]/g, " ");
+}
+async function fetchWithTimeout(url, init, timeoutMs) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+function errorMessage(res, body) {
+  let detail = "";
+  try {
+    const j = JSON.parse(body);
+    detail = j.error?.message ?? "";
+  } catch {
+    detail = "";
+  }
+  if ((res.status === 404 || res.status === 400) && /model/i.test(body)) {
+    return `model not found (HTTP ${res.status}): ${detail || body.slice(0, 160)} \u2014 verify with: curl -s https://openrouter.ai/api/v1/models`;
+  }
+  return `HTTP ${res.status}: ${detail || body.slice(0, 160) || res.statusText}`;
+}
+async function probeOnce(route, prompt, opts) {
+  const { maxAnswerTokens, siteUrl, siteName, timeoutMs } = opts;
+  let lastErr = null;
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const started = Date.now();
+    try {
+      let res;
+      if (route.provider === "openrouter") {
+        res = await fetchWithTimeout(
+          OPENROUTER_URL,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+              "HTTP-Referer": siteUrl ? `https://${siteUrl}` : "https://seoflow",
+              "X-Title": siteName ? `${siteName} SeoFlow` : "SeoFlow"
+            },
+            body: JSON.stringify({
+              model: route.modelId,
+              messages: [{ role: "user", content: prompt }],
+              max_tokens: maxAnswerTokens,
+              temperature: 0.3
+            })
+          },
+          timeoutMs
+        );
+        if (!res.ok) {
+          const body = await res.text().catch(() => "");
+          throw new Error(errorMessage(res, body));
+        }
+        const data2 = await res.json();
+        const content = data2.choices?.[0]?.message?.content;
+        const text2 = Array.isArray(content) ? content.map((p) => p.text ?? "").join("") : content ?? "";
+        return {
+          text: text2,
+          promptTokens: data2.usage?.prompt_tokens ?? 0,
+          completionTokens: data2.usage?.completion_tokens ?? 0,
+          latencyMs: Date.now() - started
+        };
+      }
+      res = await fetchWithTimeout(
+        GEMINI_DIRECT_URL(route.modelId, process.env.GEMINI_API_KEY || ""),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { temperature: 0.3, maxOutputTokens: maxAnswerTokens }
+          })
+        },
+        timeoutMs
+      );
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(errorMessage(res, body));
+      }
+      const data = await res.json();
+      const text = (data.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join("");
+      return {
+        text,
+        promptTokens: data.usageMetadata?.promptTokenCount ?? 0,
+        completionTokens: data.usageMetadata?.candidatesTokenCount ?? 0,
+        latencyMs: Date.now() - started
+      };
+    } catch (e) {
+      lastErr = e instanceof Error ? e : new Error(String(e));
+      if (attempt === 1) {
+        await new Promise((r) => setTimeout(r, RETRY_DELAY_MS));
+      }
+    }
+  }
+  throw lastErr ?? new Error("probe failed");
+}
+function nextProbeId() {
+  probeCounter++;
+  return `probe-${probeCounter}`;
+}
+function buildJobs(resolved, opts) {
+  const jobs = [];
+  for (const topic of resolved.topics) {
+    if (opts.topic && topic.name !== opts.topic) continue;
+    for (const prompt of topic.prompts) {
+      for (const brand of ["chatgpt", "gemini", "perplexity"]) {
+        jobs.push({ topic: topic.name, prompt, brand, route: routeForBrand(brand, resolved) });
+      }
+    }
+  }
+  return jobs;
+}
+function computeBudget(jobs, resolved, limit) {
+  let available = Infinity;
+  try {
+    const max = loadConfig().aiLimits?.maxCallsPerRun;
+    if (max) available = Math.max(0, max - getAiCallCount());
+  } catch {
+  }
+  const issuable = jobs.filter((j) => j.route.skipReason === null).length;
+  return Math.min(available, resolved.perRunCap, limit ?? Infinity, issuable);
+}
+async function runCitationsProbes(opts = {}) {
+  const cfg = loadConfig();
+  const resolved = resolveCitationsConfig(cfg.citations);
+  if (!resolved.enabled) {
+    throw new SkipStepError("citations disabled (citations.enabled: false)");
+  }
+  requireIntegration("citations-probe");
+  const siteUrl = cfg.siteUrl;
+  const siteName = cfg.siteName;
+  const detection = resolveDetectionSettings(cfg.citations);
+  const jobs = buildJobs(resolved, opts);
+  if (jobs.length === 0) {
+    throw new SkipStepError("citations: no topics/prompts configured");
+  }
+  const budget = computeBudget(jobs, resolved, opts.limit ?? null);
+  const startedAt = (/* @__PURE__ */ new Date()).toISOString();
+  const probes = [];
+  let issued = 0;
+  let costUsd = 0;
+  for (const job of jobs) {
+    const base = {
+      id: nextProbeId(),
+      topic: job.topic,
+      prompt: job.prompt,
+      brand: job.brand,
+      provider: job.route.provider,
+      modelId: job.route.modelId,
+      status: "skipped-key",
+      error: null,
+      startedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      latencyMs: 0,
+      promptTokens: 0,
+      completionTokens: 0,
+      costUsd: 0,
+      answerSnippet: "",
+      inlineCitationCount: 0,
+      citationsArray: [],
+      mentions: [],
+      mentionCount: 0
+    };
+    if (job.route.skipReason) {
+      base.error = job.route.skipReason;
+      probes.push(base);
+      continue;
+    }
+    if (issued >= budget) {
+      base.status = "skipped-budget";
+      base.error = `budget cap ${budget} reached`;
+      probes.push(base);
+      continue;
+    }
+    issued++;
+    bumpAiCallCount();
+    const probeStarted = Date.now();
+    try {
+      const raw = await probeOnce(job.route, job.prompt, {
+        maxAnswerTokens: resolved.maxAnswerTokens,
+        siteUrl,
+        siteName,
+        timeoutMs: DEFAULT_TIMEOUT_MS
+      });
+      const detected = detectMentions(raw.text, job.prompt, { siteUrl, siteName, author: cfg.author }, detection);
+      const probeCost = estimateCostUsd(job.route.modelId, raw.promptTokens, raw.completionTokens);
+      costUsd += probeCost;
+      probes.push({
+        ...base,
+        status: "ok",
+        provider: job.route.provider,
+        latencyMs: raw.latencyMs,
+        promptTokens: raw.promptTokens,
+        completionTokens: raw.completionTokens,
+        costUsd: probeCost,
+        answerSnippet: raw.text.slice(0, 400),
+        inlineCitationCount: detected.inlineCitationCount,
+        mentions: detected.mentions,
+        mentionCount: detected.mentionCount
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.log(`     \u26A0\uFE0F  ${job.brand}/${job.topic} probe failed: ${sanitizeLog(msg)}`);
+      probes.push({
+        ...base,
+        status: "error",
+        provider: job.route.provider,
+        latencyMs: Date.now() - probeStarted,
+        error: msg
+      });
+    }
+  }
+  const ok = probes.filter((p) => p.status === "ok").length;
+  const errors = probes.filter((p) => p.status === "error").length;
+  const skips = probes.filter((p) => p.status === "skipped-key" || p.status === "skipped-budget").length;
+  const status = ok === 0 && errors > 0 ? "failed" : errors > 0 || skips > 0 ? "degraded" : "completed";
+  return {
+    id: `run-${startedAt.replace(/[:.]/g, "-")}`,
+    startedAt,
+    finishedAt: (/* @__PURE__ */ new Date()).toISOString(),
+    status,
+    config: { freeOnly: resolved.freeOnly, perRunCap: resolved.perRunCap },
+    budget: { callsUsed: issued, callsCap: budget, costUsd: Number(costUsd.toFixed(6)) },
+    probes
+  };
+}
+var OPENROUTER_URL, GEMINI_DIRECT_URL, DEFAULT_TIMEOUT_MS, RETRY_DELAY_MS, probeCounter;
+var init_probe = __esm({
+  "lib/citations/probe.ts"() {
+    "use strict";
+    init_config();
+    init_degradation();
+    init_ai_provider();
+    init_config2();
+    init_detect();
+    OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+    GEMINI_DIRECT_URL = (model, key) => `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+    DEFAULT_TIMEOUT_MS = 6e4;
+    RETRY_DELAY_MS = 5e3;
+    probeCounter = 0;
+  }
+});
+
+// lib/citations/index.ts
+var citations_exports = {};
+__export(citations_exports, {
+  BRANDS: () => BRANDS,
+  BRAND_LABELS: () => BRAND_LABELS,
+  DEFAULT_MODELS: () => DEFAULT_MODELS,
+  FREE_MODELS: () => FREE_MODELS,
+  GEMINI_DIRECT_MODEL: () => GEMINI_DIRECT_MODEL,
+  MODEL_PRICES: () => MODEL_PRICES,
+  aggregateSov: () => aggregateSov,
+  appendRun: () => appendRun,
+  buildPatterns: () => buildPatterns,
+  defaultTopicPack: () => defaultTopicPack,
+  detectMentions: () => detectMentions,
+  escapeRegex: () => escapeRegex,
+  estimateCostUsd: () => estimateCostUsd,
+  findSourcesSectionIndex: () => findSourcesSectionIndex,
+  formatRunTable: () => formatRunTable,
+  formatSovTable: () => formatSovTable,
+  getCitationsPaths: () => getCitationsPaths,
+  loadHistory: () => loadHistory,
+  loadSov: () => loadSov,
+  resolveCitationsConfig: () => resolveCitationsConfig,
+  resolveDetectionSettings: () => resolveDetectionSettings,
+  routeForBrand: () => routeForBrand,
+  runCitationsProbes: () => runCitationsProbes,
+  saveHistory: () => saveHistory,
+  saveSov: () => saveSov,
+  stripEchoedPrompt: () => stripEchoedPrompt
+});
+var init_citations = __esm({
+  "lib/citations/index.ts"() {
+    "use strict";
+    init_types();
+    init_config2();
+    init_detect();
+    init_store();
+    init_sov();
+    init_probe();
+  }
+});
+
 // lib/extensions.ts
 var extensions_exports = {};
 __export(extensions_exports, {
@@ -4998,39 +5810,39 @@ __export(extensions_exports, {
   getSupportedExtensions: () => getSupportedExtensions,
   installExtension: () => installExtension
 });
-import fs20 from "fs";
-import path19 from "path";
+import fs21 from "fs";
+import path21 from "path";
 import { fileURLToPath } from "url";
 function resolveRootDir(rootDir) {
   const base = rootDir || process.cwd();
-  return path19.resolve(base);
+  return path21.resolve(base);
 }
 function getStateFilePath(rootDir) {
   const resolvedRootDir = resolveRootDir(rootDir);
-  return path19.join(resolvedRootDir, ".seoflow", "extensions.json");
+  return path21.join(resolvedRootDir, ".seoflow", "extensions.json");
 }
 function findExtensionBundleRoot(extensionId, rootDir) {
   const candidates = [
-    path19.resolve(resolveRootDir(rootDir), "extensions", extensionId),
-    path19.resolve(path19.dirname(fileURLToPath(import.meta.url)), "..", "extensions", extensionId),
-    path19.resolve(path19.dirname(fileURLToPath(import.meta.url)), "..", "..", "extensions", extensionId)
+    path21.resolve(resolveRootDir(rootDir), "extensions", extensionId),
+    path21.resolve(path21.dirname(fileURLToPath(import.meta.url)), "..", "extensions", extensionId),
+    path21.resolve(path21.dirname(fileURLToPath(import.meta.url)), "..", "..", "extensions", extensionId)
   ];
-  return candidates.find((candidate) => fs20.existsSync(candidate)) || null;
+  return candidates.find((candidate) => fs21.existsSync(candidate)) || null;
 }
 function provisionExtensionBundle(extensionId, rootDir) {
   const resolvedRootDir = resolveRootDir(rootDir);
   const sourceDir = findExtensionBundleRoot(extensionId, resolvedRootDir);
   if (!sourceDir) return;
-  const destinationDir = path19.join(resolvedRootDir, ".seoflow", "extensions", extensionId);
-  fs20.mkdirSync(path19.dirname(destinationDir), { recursive: true });
-  fs20.rmSync(destinationDir, { recursive: true, force: true });
-  fs20.cpSync(sourceDir, destinationDir, { recursive: true });
+  const destinationDir = path21.join(resolvedRootDir, ".seoflow", "extensions", extensionId);
+  fs21.mkdirSync(path21.dirname(destinationDir), { recursive: true });
+  fs21.rmSync(destinationDir, { recursive: true, force: true });
+  fs21.cpSync(sourceDir, destinationDir, { recursive: true });
 }
 function readState(rootDir) {
   const statePath = getStateFilePath(rootDir);
-  if (!fs20.existsSync(statePath)) return {};
+  if (!fs21.existsSync(statePath)) return {};
   try {
-    const parsed = JSON.parse(fs20.readFileSync(statePath, "utf8"));
+    const parsed = JSON.parse(fs21.readFileSync(statePath, "utf8"));
     return parsed;
   } catch {
     return {};
@@ -5038,8 +5850,8 @@ function readState(rootDir) {
 }
 function writeState(rootDir, state) {
   const statePath = getStateFilePath(rootDir);
-  fs20.mkdirSync(path19.dirname(statePath), { recursive: true });
-  fs20.writeFileSync(statePath, JSON.stringify(state, null, 2));
+  fs21.mkdirSync(path21.dirname(statePath), { recursive: true });
+  fs21.writeFileSync(statePath, JSON.stringify(state, null, 2));
 }
 function getSupportedExtensions() {
   return SUPPORTED_EXTENSIONS.map((ext) => ({ ...ext }));
@@ -5169,7 +5981,7 @@ function generateId() {
   return `${ts}-${rand}-${_idCounter}`;
 }
 var _idCounter, ALL_STEPS;
-var init_types = __esm({
+var init_types2 = __esm({
   "lib/orchestrator/types.ts"() {
     "use strict";
     _idCounter = 0;
@@ -5192,7 +6004,8 @@ var init_types = __esm({
       { id: "fact-check", name: "Fact Check", phase: "synthesis", dependsOn: ["content-audit"], requiresIntegrations: ["gemini", "openrouter", "anthropic"] },
       // Final
       { id: "reciprocal-links", name: "Reciprocal Internal Links", phase: "final", dependsOn: ["fix-frontmatter"], requiresIntegrations: [] },
-      { id: "report-export", name: "Report Export", phase: "final", dependsOn: ["schema-validation", "quality-audit", "technical-audit", "fact-check"], requiresIntegrations: [] }
+      { id: "report-export", name: "Report Export", phase: "final", dependsOn: ["schema-validation", "quality-audit", "technical-audit", "fact-check"], requiresIntegrations: [] },
+      { id: "citations", name: "AI Citation Probe", phase: "final", dependsOn: [], requiresIntegrations: ["citations-probe"] }
     ];
   }
 });
@@ -5205,11 +6018,11 @@ __export(orchestrator_exports, {
   registerStepRunner: () => registerStepRunner,
   runPipeline: () => runPipeline
 });
-import fs21 from "node:fs";
-import path20 from "node:path";
+import fs22 from "node:fs";
+import path22 from "node:path";
 function loadState() {
   const p = STATE_PATH();
-  if (!fs21.existsSync(p)) {
+  if (!fs22.existsSync(p)) {
     return {
       version: 1,
       lastUpdated: (/* @__PURE__ */ new Date()).toISOString(),
@@ -5219,7 +6032,7 @@ function loadState() {
     };
   }
   try {
-    return JSON.parse(fs21.readFileSync(p, "utf-8"));
+    return JSON.parse(fs22.readFileSync(p, "utf-8"));
   } catch {
     return {
       version: 1,
@@ -5232,10 +6045,10 @@ function loadState() {
 }
 function saveState(state) {
   const p = STATE_PATH();
-  const dir = path20.dirname(p);
-  if (!fs21.existsSync(dir)) fs21.mkdirSync(dir, { recursive: true });
+  const dir = path22.dirname(p);
+  if (!fs22.existsSync(dir)) fs22.mkdirSync(dir, { recursive: true });
   state.lastUpdated = (/* @__PURE__ */ new Date()).toISOString();
-  fs21.writeFileSync(p, JSON.stringify(state, null, 2));
+  fs22.writeFileSync(p, JSON.stringify(state, null, 2));
 }
 function createAssignment(slug, step) {
   return {
@@ -5359,9 +6172,9 @@ async function runPipeline(slugs, dryRun = false) {
           totalChanges += changeCount;
           appendLog({ type: "change", summary: `${step.name}: ${changeCount} changes on ${slug}`, slug, step: step.id, changeCount });
           if (result.data) {
-            const sidecarPath = path20.join(process.cwd(), ".seoflow", "data", `${slug}-${step.id}.data.json`);
-            fs21.mkdirSync(path20.dirname(sidecarPath), { recursive: true });
-            fs21.writeFileSync(sidecarPath, JSON.stringify(result.data, null, 2));
+            const sidecarPath = path22.join(process.cwd(), ".seoflow", "data", `${slug}-${step.id}.data.json`);
+            fs22.mkdirSync(path22.dirname(sidecarPath), { recursive: true });
+            fs22.writeFileSync(sidecarPath, JSON.stringify(result.data, null, 2));
           }
         } else {
           updateAssignment(state, assignment.id, {
@@ -5450,8 +6263,8 @@ var init_orchestrator = __esm({
     "use strict";
     init_brain();
     init_degradation();
-    init_types();
-    STATE_PATH = () => path20.join(process.cwd(), ".seoflow", "data", "pipeline-state.json");
+    init_types2();
+    STATE_PATH = () => path22.join(process.cwd(), ".seoflow", "data", "pipeline-state.json");
     stepRunners = /* @__PURE__ */ new Map();
   }
 });
@@ -5627,29 +6440,29 @@ var init_imagekit_client = __esm({
 });
 
 // lib/ubersuggest-client.ts
-import fs22 from "fs";
-import path21 from "path";
+import fs23 from "fs";
+import path23 from "path";
 function cachePath() {
   return loadConfig().keywordCachePath;
 }
 function loadCache() {
   try {
     const p = cachePath();
-    if (fs22.existsSync(p)) {
-      return JSON.parse(fs22.readFileSync(p, "utf8"));
+    if (fs23.existsSync(p)) {
+      return JSON.parse(fs23.readFileSync(p, "utf8"));
     }
   } catch {
   }
   return [];
 }
 function saveCache(cache) {
-  fs22.writeFileSync(cachePath(), JSON.stringify(cache, null, 2));
+  fs23.writeFileSync(cachePath(), JSON.stringify(cache, null, 2));
 }
 function findRoot3() {
   let dir = process.cwd();
   for (let i = 0; i < 10; i++) {
-    if (fs22.existsSync(path21.join(dir, "seoflow.config.json"))) return dir;
-    const p = path21.dirname(dir);
+    if (fs23.existsSync(path23.join(dir, "seoflow.config.json"))) return dir;
+    const p = path23.dirname(dir);
     if (p === dir) break;
     dir = p;
   }
@@ -6639,7 +7452,7 @@ var init_schema = __esm({
 
 // lib/technical/psi.ts
 import { execSync as execSync4 } from "child_process";
-import path22 from "path";
+import path24 from "path";
 function getPSIInstance(apiKey) {
   if (!psiInstance) {
     psiInstance = new PageSpeedInsights(apiKey);
@@ -6648,7 +7461,7 @@ function getPSIInstance(apiKey) {
 }
 function validateUrl(url) {
   try {
-    const scriptPath = path22.join(process.cwd(), "python", "url_safety.py");
+    const scriptPath = path24.join(process.cwd(), "python", "url_safety.py");
     const cmd = `python3 ${scriptPath} --url "${url}"`;
     execSync4(cmd, { encoding: "utf8", stdio: "ignore" });
     return true;
@@ -7716,8 +8529,8 @@ var init_geo = __esm({
 });
 
 // lib/reports/pdf-generator.ts
-import path23 from "path";
-import fs23 from "fs";
+import path25 from "path";
+import fs24 from "fs";
 var PDFGenerator;
 var init_pdf_generator = __esm({
   "lib/reports/pdf-generator.ts"() {
@@ -7728,12 +8541,12 @@ var init_pdf_generator = __esm({
        * Generates a PDF report using the Claude SEO report generator
        */
       static generate(data, outputPath) {
-        const outputDir = path23.dirname(outputPath);
-        if (!fs23.existsSync(outputDir)) {
-          fs23.mkdirSync(outputDir, { recursive: true });
+        const outputDir = path25.dirname(outputPath);
+        if (!fs24.existsSync(outputDir)) {
+          fs24.mkdirSync(outputDir, { recursive: true });
         }
-        const tempDataPath = path23.join(outputDir, `temp-report-data-${Date.now()}.json`);
-        fs23.writeFileSync(tempDataPath, JSON.stringify(data.data, null, 2));
+        const tempDataPath = path25.join(outputDir, `temp-report-data-${Date.now()}.json`);
+        fs24.writeFileSync(tempDataPath, JSON.stringify(data.data, null, 2));
         try {
           if (!PythonManager.isPythonAvailable()) {
             throw new Error("Python not available - install Python 3.10+");
@@ -7759,7 +8572,7 @@ var init_pdf_generator = __esm({
             timeout: 12e4
             // 2 minutes
           });
-          if (result.code === 0 && fs23.existsSync(outputPath)) {
+          if (result.code === 0 && fs24.existsSync(outputPath)) {
             console.log(`PDF report generated successfully: ${outputPath}`);
             return outputPath;
           } else {
@@ -7770,8 +8583,8 @@ var init_pdf_generator = __esm({
           console.error("PDF generation error:", error);
           throw new Error(`PDF generation failed: ${error}`);
         } finally {
-          if (fs23.existsSync(tempDataPath)) {
-            fs23.unlinkSync(tempDataPath);
+          if (fs24.existsSync(tempDataPath)) {
+            fs24.unlinkSync(tempDataPath);
           }
         }
       }
@@ -7811,8 +8624,8 @@ var init_pdf_generator = __esm({
 
 // lib/reports/reports.ts
 import { execSync as execSync5 } from "child_process";
-import path24 from "path";
-import fs24 from "fs";
+import path26 from "path";
+import fs25 from "fs";
 var ReportGenerator;
 var init_reports = __esm({
   "lib/reports/reports.ts"() {
@@ -7832,18 +8645,18 @@ var init_reports = __esm({
           outputDir = "reports",
           filename = `seoflow-report-${Date.now()}.${format}`
         } = options;
-        if (!fs24.existsSync(outputDir)) {
-          fs24.mkdirSync(outputDir, { recursive: true });
+        if (!fs25.existsSync(outputDir)) {
+          fs25.mkdirSync(outputDir, { recursive: true });
         }
-        const outputPath = path24.join(outputDir, filename);
+        const outputPath = path26.join(outputDir, filename);
         try {
           if (format === "pdf") {
             return PDFGenerator.generateSimpleReport(data, new URL(data.url).hostname, outputPath);
           } else {
-            const scriptPath = path24.join(process.cwd(), "python", "google_report.py");
+            const scriptPath = path26.join(process.cwd(), "python", "google_report.py");
             const cmd = this.buildCommand(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath);
             execSync5(cmd, { encoding: "utf8", stdio: "ignore" });
-            if (fs24.existsSync(outputPath)) {
+            if (fs25.existsSync(outputPath)) {
               console.log(`\u2705 Report generated: ${outputPath}`);
               return outputPath;
             } else {
@@ -7864,7 +8677,7 @@ var init_reports = __esm({
       static buildCommand(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath) {
         const args = [
           "python3",
-          path24.join(process.cwd(), "python", "google_report.py"),
+          path26.join(process.cwd(), "python", "google_report.py"),
           "--url",
           `"${data.url}"`,
           "--score",
@@ -7906,7 +8719,7 @@ var init_reports = __esm({
           version: "1.0",
           data
         };
-        fs24.writeFileSync(outputPath, JSON.stringify(report, null, 2));
+        fs25.writeFileSync(outputPath, JSON.stringify(report, null, 2));
         console.log(`\u2705 Fallback report generated: ${outputPath}`);
         return outputPath;
       }
@@ -8185,9 +8998,9 @@ __export(steps_exports, {
   stepKeywordResearch: () => stepKeywordResearch,
   stepNeuronWriter: () => stepNeuronWriter
 });
-import fs25 from "fs";
-import path25 from "node:path";
-function sanitizeLog(s) {
+import fs26 from "fs";
+import path27 from "node:path";
+function sanitizeLog2(s) {
   return String(s ?? "").replace(/[\r\n]/g, " ");
 }
 function toolTriggers() {
@@ -8323,18 +9136,18 @@ function stepInjectReciprocalLinks(input, opts = {}) {
   const mySlug = input.slug;
   const myTags = (input.frontmatter.tags || []).map((t) => String(t).toLowerCase());
   const myTitle = input.frontmatter.title || mySlug;
-  if (myTags.length === 0 || !fs25.existsSync(postsDir)) {
+  if (myTags.length === 0 || !fs26.existsSync(postsDir)) {
     return { content: input.content, frontmatter: input.frontmatter, changes };
   }
-  const candidateFiles = fs25.readdirSync(postsDir).filter((f) => (f.endsWith(".mdx") || f.endsWith(".md")) && f.replace(/\.mdx?$/, "") !== mySlug);
+  const candidateFiles = fs26.readdirSync(postsDir).filter((f) => (f.endsWith(".mdx") || f.endsWith(".md")) && f.replace(/\.mdx?$/, "") !== mySlug);
   let edited = 0;
   for (const file of candidateFiles) {
     if (edited >= maxEdits) break;
-    const filePath = path25.join(postsDir, file);
+    const filePath = path27.join(postsDir, file);
     const otherSlug = file.replace(/\.mdx?$/, "");
     let raw;
     try {
-      raw = fs25.readFileSync(filePath, "utf8");
+      raw = fs26.readFileSync(filePath, "utf8");
     } catch {
       continue;
     }
@@ -8362,7 +9175,7 @@ ${linkLine}
     if (!opts.dryRun) {
       const updatedFm = otherFm.lastModified ? { ...otherFm, lastModified: (/* @__PURE__ */ new Date()).toISOString().split("T")[0] } : otherFm;
       const newRaw = buildFrontmatterBlock(updatedFm) + newContent;
-      fs25.writeFileSync(filePath, newRaw, "utf8");
+      fs26.writeFileSync(filePath, newRaw, "utf8");
     }
     changes.push(`Reciprocal link: added "${myTitle}" to ${otherSlug} Related Guides`);
     edited++;
@@ -8381,10 +9194,10 @@ async function stepInjectImages(input) {
     if (imagesAdded >= MAX_NEW_IMAGES) break;
     if (!sectionNeedsImage(section.lines)) continue;
     const searchQuery = `${section.heading} ${destination}`.replace(/[^a-zA-Z0-9 ]/g, " ").trim();
-    console.log(`    \u{1F50D} Fetching image for: "${sanitizeLog(searchQuery)}"`);
+    console.log(`    \u{1F50D} Fetching image for: "${sanitizeLog2(searchQuery)}"`);
     const img = await fetchBestImage(searchQuery);
     if (!img) {
-      console.log(`    \u26A0\uFE0F  No image found for: "${sanitizeLog(searchQuery)}"`);
+      console.log(`    \u26A0\uFE0F  No image found for: "${sanitizeLog2(searchQuery)}"`);
       continue;
     }
     let imgUrl = img.url;
@@ -8418,16 +9231,16 @@ async function stepNeuronWriter(input) {
     return { content: input.content, frontmatter: input.frontmatter, changes: [], neuronData: null };
   }
   const keyword = input.frontmatter.focusKeyword || input.frontmatter.title || input.slug;
-  console.log(`     NW: fetching data for "${sanitizeLog(keyword)}"`);
+  console.log(`     NW: fetching data for "${sanitizeLog2(keyword)}"`);
   const neuronData = await fetchNeuronData(keyword);
   if (neuronData?.missingTerms?.length) {
-    console.log(`     NW missing terms: ${sanitizeLog(neuronData.missingTerms.slice(0, 5).join(", "))}`);
+    console.log(`     NW missing terms: ${sanitizeLog2(neuronData.missingTerms.slice(0, 5).join(", "))}`);
   }
   if (neuronData?.targetWordCount) {
     console.log(`     NW target word count: ${neuronData.targetWordCount} (current: ${countWords(input.content)})`);
   }
   if (neuronData?.notes) {
-    console.log(`     NW: ${sanitizeLog(neuronData.notes)}`);
+    console.log(`     NW: ${sanitizeLog2(neuronData.notes)}`);
   }
   return { content: input.content, frontmatter: input.frontmatter, changes: [], neuronData };
 }
@@ -8835,8 +9648,8 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
     return { slug, changes: 0, before: {}, after: {}, neuronData: null };
   }
   console.log(`
-  \u{1F4C4} ${sanitizeLog(slug)}`);
-  const raw = fs25.readFileSync(filePath, "utf8");
+  \u{1F4C4} ${sanitizeLog2(slug)}`);
+  const raw = fs26.readFileSync(filePath, "utf8");
   const parsed = parseMdx(raw);
   const originalKeys = new Set(Object.keys(parsed.frontmatter));
   const strictFm = loadConfig().frontmatter?.allowNewKeys === false;
@@ -8856,7 +9669,7 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
     const delta = checkGscDelta(slug, mode, category, gsc);
     if (delta) {
       const dir = delta.positionChange < 0 ? "improved" : "declined";
-      console.log(`     \u{1F4C8} GSC since last audit: pos ${delta.positionChange > 0 ? "+" : ""}${delta.positionChange.toFixed(1)} (${sanitizeLog(dir)}), ${delta.clicksChange > 0 ? "+" : ""}${delta.clicksChange} clicks`);
+      console.log(`     \u{1F4C8} GSC since last audit: pos ${delta.positionChange > 0 ? "+" : ""}${delta.positionChange.toFixed(1)} (${sanitizeLog2(dir)}), ${delta.clicksChange > 0 ? "+" : ""}${delta.clicksChange} clicks`);
     }
   }
   let state = { content: input.content, frontmatter: input.frontmatter };
@@ -8991,7 +9804,7 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
         Object.assign(writeFm, state.frontmatter);
       }
       const newRaw = buildFrontmatterBlock(writeFm) + state.content;
-      fs25.writeFileSync(filePath, newRaw, "utf8");
+      fs26.writeFileSync(filePath, newRaw, "utf8");
     }
     console.log(`     ${dryRun ? "[DRY RUN] Would apply" : "\u2705 Written"} (${allChanges.length} changes)`);
     for (const c of allChanges) console.log(`       \u2022 ${c}`);
@@ -9026,20 +9839,20 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
 }
 function loadPost(slug) {
   const postsDir = getPostsDir();
-  const filePath = path25.join(postsDir, `${slug}.mdx`);
+  const filePath = path27.join(postsDir, `${slug}.mdx`);
   if (!filePath.endsWith(".mdx") && !filePath.endsWith(".md")) {
-    const mdxPath = path25.join(postsDir, `${slug}.mdx`);
-    const mdPath = path25.join(postsDir, `${slug}.md`);
-    if (fs25.existsSync(mdxPath)) return readPostFile(mdxPath);
-    if (fs25.existsSync(mdPath)) return readPostFile(mdPath);
+    const mdxPath = path27.join(postsDir, `${slug}.mdx`);
+    const mdPath = path27.join(postsDir, `${slug}.md`);
+    if (fs26.existsSync(mdxPath)) return readPostFile(mdxPath);
+    if (fs26.existsSync(mdPath)) return readPostFile(mdPath);
     return null;
   }
-  return fs25.existsSync(filePath) ? readPostFile(filePath) : null;
+  return fs26.existsSync(filePath) ? readPostFile(filePath) : null;
 }
 function readPostFile(filePath) {
-  const raw = fs25.readFileSync(filePath, "utf-8");
+  const raw = fs26.readFileSync(filePath, "utf-8");
   const { frontmatter, content } = parseMdx(raw);
-  if (!frontmatter.slug) frontmatter.slug = path25.basename(filePath, path25.extname(filePath));
+  if (!frontmatter.slug) frontmatter.slug = path27.basename(filePath, path27.extname(filePath));
   return { filePath, content, frontmatter };
 }
 function registerAllStepRunners() {
@@ -9200,6 +10013,31 @@ function registerAllStepRunners() {
       return { success: true, changes: [], data: {} };
     }
   });
+  let citationsRanThisProcess = false;
+  registerStepRunner("citations", async (slug) => {
+    if (citationsRanThisProcess) {
+      return { success: true, changes: [], data: { note: "citations already probed this run" } };
+    }
+    citationsRanThisProcess = true;
+    try {
+      const { runCitationsProbes: runCitationsProbes2 } = await Promise.resolve().then(() => (init_citations(), citations_exports));
+      const run = await runCitationsProbes2({});
+      console.log(`   \u{1F50E} citations: ${run.probes.length} probes, ${run.budget.callsUsed}/${run.budget.callsCap} calls, est. $${run.budget.costUsd.toFixed(4)}, status ${run.status}`);
+      return {
+        success: true,
+        changes: [],
+        data: {
+          runId: run.id,
+          status: run.status,
+          probes: run.probes.length,
+          cited: run.probes.filter((p) => p.mentionCount > 0).length
+        }
+      };
+    } catch (e) {
+      if (e instanceof SkipStepError) throw e;
+      return { success: false, error: e instanceof Error ? e.message : "Citations probe failed" };
+    }
+  });
   appendLog({ type: "note", summary: "Step runners registered with orchestrator" });
 }
 var AI_PHRASES, _toolTriggers, _bookingTriggers, _affiliateTriggers;
@@ -9238,8 +10076,8 @@ var run_exports = {};
 __export(run_exports, {
   runPipeline: () => runPipeline2
 });
-import fs26 from "fs";
-import path26 from "path";
+import fs27 from "fs";
+import path28 from "path";
 async function cmdCluster() {
   loadEnv();
   loadConfig();
@@ -9286,6 +10124,55 @@ async function cmdBrief() {
   console.log(`   Sections: ${brief.outline.length}`);
   console.log("");
 }
+async function cmdCitations() {
+  loadEnv();
+  const cfg = loadConfig();
+  const topic = (() => {
+    const i = rawArgs.indexOf("--topic");
+    return i !== -1 ? rawArgs[i + 1] : null;
+  })();
+  const limit = (() => {
+    const i = rawArgs.indexOf("--limit");
+    return i !== -1 ? parseInt(rawArgs[i + 1]) || null : null;
+  })();
+  resetAiCallCounter();
+  const { runCitationsProbes: runCitationsProbes2, loadHistory: loadHistory2, appendRun: appendRun2, formatRunTable: formatRunTable2 } = await Promise.resolve().then(() => (init_citations(), citations_exports));
+  try {
+    const run = await runCitationsProbes2({ topic, limit });
+    const history = loadHistory2();
+    if (!history.siteUrl) history.siteUrl = cfg.siteUrl;
+    appendRun2(history, run);
+    for (const line of formatRunTable2(run, cfg.siteName)) console.log(line);
+    const aiCalls = getAiCallCount();
+    const budget = cfg.aiLimits?.maxCallsPerRun;
+    console.log(`   \u2705 citations: ${run.budget.callsUsed} calls used (cap ${run.budget.callsCap})${budget ? `, AI budget ${aiCalls}/${budget}` : ""}
+`);
+  } catch (e) {
+    if (e instanceof SkipStepError) {
+      console.log(`
+\u23ED  ${e.message} \u2014 skipping citations run (exit 0).
+`);
+      return;
+    }
+    throw e;
+  }
+}
+async function cmdSov() {
+  loadEnv();
+  const cfg = loadConfig();
+  const { loadHistory: loadHistory2, aggregateSov: aggregateSov2, saveSov: saveSov2, formatSovTable: formatSovTable2, getCitationsPaths: getCitationsPaths2 } = await Promise.resolve().then(() => (init_citations(), citations_exports));
+  const history = loadHistory2();
+  if (!history.runs.length) {
+    console.log("\n\u23ED  No citation history yet \u2014 run `seoflow citations` first.\n");
+    return;
+  }
+  const windowRuns = cfg.citations?.windowRuns ?? 30;
+  const summary = aggregateSov2(history, windowRuns);
+  saveSov2(summary);
+  for (const line of formatSovTable2(summary, cfg.siteName)) console.log(line);
+  console.log(`   Data: ${getCitationsPaths2().sovPath}
+`);
+}
 async function cmdExtensions() {
   const { formatExtensionStatus: formatExtensionStatus2, getSupportedExtensions: getSupportedExtensions2, installExtension: installExtension2, getExtensionState: getExtensionState2 } = await Promise.resolve().then(() => (init_extensions(), extensions_exports));
   const subcommand = rawArgs[1];
@@ -9320,8 +10207,8 @@ async function cmdExtensions() {
   }
 }
 async function cmdInit() {
-  const configPath = path26.join(process.cwd(), "seoflow.config.json");
-  if (fs26.existsSync(configPath)) {
+  const configPath = path28.join(process.cwd(), "seoflow.config.json");
+  if (fs27.existsSync(configPath)) {
     console.log("\u2713 seoflow.config.json already exists");
     console.log("  Delete it and re-run to reconfigure, or edit it directly.");
     return;
@@ -9329,8 +10216,8 @@ async function cmdInit() {
   console.log("\n  Run the interactive installer:\n");
   console.log("  bash <(curl -s https://raw.githubusercontent.com/imsankz/seoflow/main/install.sh)\n");
   console.log("  Or copy the template and fill it in:");
-  const templatePath = path26.join(process.cwd(), ".seoflow", "seoflow.config.template.json");
-  if (fs26.existsSync(templatePath)) {
+  const templatePath = path28.join(process.cwd(), ".seoflow", "seoflow.config.template.json");
+  if (fs27.existsSync(templatePath)) {
     console.log(`  cp ${templatePath} seoflow.config.json
 `);
   }
@@ -9341,7 +10228,7 @@ async function cmdStatus() {
   const auditLog = loadAuditLog();
   await detectGscSource();
   const postsDir = getPostsDir();
-  const allFiles = fs26.existsSync(postsDir) ? fs26.readdirSync(postsDir).filter((f) => f.endsWith(".mdx")) : [];
+  const allFiles = fs27.existsSync(postsDir) ? fs27.readdirSync(postsDir).filter((f) => f.endsWith(".mdx")) : [];
   const posts = auditLog.posts || {};
   const completed = Object.values(posts).filter((p) => p.status === "completed").length;
   const pending = allFiles.length - completed;
@@ -9406,15 +10293,15 @@ async function cmdStatus() {
 function cmdLearn() {
   loadEnv();
   loadConfig();
-  const learningPath = path26.join(
-    path26.dirname(getAuditLogPath()),
+  const learningPath = path28.join(
+    path28.dirname(getAuditLogPath()),
     "learning.json"
   );
-  if (!fs26.existsSync(learningPath)) {
+  if (!fs27.existsSync(learningPath)) {
     console.log("\n\u26A0\uFE0F  No learning data yet. Run the pipeline on some posts first.\n");
     return;
   }
-  const db = JSON.parse(fs26.readFileSync(learningPath, "utf8"));
+  const db = JSON.parse(fs27.readFileSync(learningPath, "utf8"));
   console.log("\n\u{1F9E0} SeoFlow Learning Insights");
   console.log("\u2500".repeat(60));
   const steps = Object.entries(db.steps || {});
@@ -9448,21 +10335,21 @@ function cmdLearn() {
 function cmdLearningExport(outFile) {
   loadEnv();
   loadConfig();
-  const dataDir = path26.dirname(getAuditLogPath());
-  const learningPath = path26.join(dataDir, "learning.json");
-  const baselinesPath = path26.join(dataDir, "gsc-baselines.json");
+  const dataDir = path28.dirname(getAuditLogPath());
+  const learningPath = path28.join(dataDir, "learning.json");
+  const baselinesPath = path28.join(dataDir, "gsc-baselines.json");
   const bundle = {
     exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
     version: "2.0"
   };
-  if (fs26.existsSync(learningPath)) {
-    bundle.learning = JSON.parse(fs26.readFileSync(learningPath, "utf8"));
+  if (fs27.existsSync(learningPath)) {
+    bundle.learning = JSON.parse(fs27.readFileSync(learningPath, "utf8"));
   }
-  if (fs26.existsSync(baselinesPath)) {
-    bundle.gscBaselines = JSON.parse(fs26.readFileSync(baselinesPath, "utf8"));
+  if (fs27.existsSync(baselinesPath)) {
+    bundle.gscBaselines = JSON.parse(fs27.readFileSync(baselinesPath, "utf8"));
   }
   const dest = outFile || `seoflow-learning-${(/* @__PURE__ */ new Date()).toISOString().split("T")[0]}.json`;
-  fs26.writeFileSync(dest, JSON.stringify(bundle, null, 2));
+  fs27.writeFileSync(dest, JSON.stringify(bundle, null, 2));
   console.log(`
 \u2705 Learning data exported to: ${dest}`);
   console.log("   Import on another machine: seoflow learning import " + dest + "\n");
@@ -9470,21 +10357,21 @@ function cmdLearningExport(outFile) {
 function cmdLearningImport(inFile) {
   loadEnv();
   loadConfig();
-  if (!inFile || !fs26.existsSync(inFile)) {
+  if (!inFile || !fs27.existsSync(inFile)) {
     console.error(`
 \u274C File not found: ${inFile || "(no file specified)"}`);
     console.error("   Usage: seoflow learning import <file.json>\n");
     process.exit(1);
   }
-  const bundle = JSON.parse(fs26.readFileSync(inFile, "utf8"));
-  const dataDir = path26.dirname(getAuditLogPath());
-  if (!fs26.existsSync(dataDir)) fs26.mkdirSync(dataDir, { recursive: true });
+  const bundle = JSON.parse(fs27.readFileSync(inFile, "utf8"));
+  const dataDir = path28.dirname(getAuditLogPath());
+  if (!fs27.existsSync(dataDir)) fs27.mkdirSync(dataDir, { recursive: true });
   if (bundle.learning) {
-    fs26.writeFileSync(path26.join(dataDir, "learning.json"), JSON.stringify(bundle.learning, null, 2));
+    fs27.writeFileSync(path28.join(dataDir, "learning.json"), JSON.stringify(bundle.learning, null, 2));
     console.log("  \u2705 Imported learning.json");
   }
   if (bundle.gscBaselines) {
-    fs26.writeFileSync(path26.join(dataDir, "gsc-baselines.json"), JSON.stringify(bundle.gscBaselines, null, 2));
+    fs27.writeFileSync(path28.join(dataDir, "gsc-baselines.json"), JSON.stringify(bundle.gscBaselines, null, 2));
     console.log("  \u2705 Imported gsc-baselines.json");
   }
   console.log(`
@@ -9559,8 +10446,8 @@ async function runPipeline2() {
       console.log(`   \u2192 ${note}`);
       try {
         const { execSync: execSync6 } = await import("node:child_process");
-        const syncScript = path26.join(process.cwd(), "scripts", "sync-seo-brain-to-obsidian.sh");
-        if (fs26.existsSync(syncScript)) {
+        const syncScript = path28.join(process.cwd(), "scripts", "sync-seo-brain-to-obsidian.sh");
+        if (fs27.existsSync(syncScript)) {
           execSync6(`bash "${syncScript}"`, { stdio: "inherit", cwd: process.cwd() });
         }
       } catch {
@@ -9606,6 +10493,14 @@ async function runPipeline2() {
     await cmdBrief();
     return;
   }
+  if (VERB === "citations") {
+    await cmdCitations();
+    return;
+  }
+  if (VERB === "sov") {
+    await cmdSov();
+    return;
+  }
   if (VERB === "audit" && VERB_ARG && isUrl(VERB_ARG)) {
     const { auditUrl: auditUrl2 } = await Promise.resolve().then(() => (init_url_auditor(), url_auditor_exports));
     const result = await auditUrl2(VERB_ARG);
@@ -9627,11 +10522,11 @@ ${"\u2550".repeat(60)}`);
 `);
     console.log(result.report);
     if (!DRY_RUN) {
-      const reportsDir = path26.join(process.cwd(), ".seoflow", "reports");
-      if (!fs26.existsSync(reportsDir)) fs26.mkdirSync(reportsDir, { recursive: true });
+      const reportsDir = path28.join(process.cwd(), ".seoflow", "reports");
+      if (!fs27.existsSync(reportsDir)) fs27.mkdirSync(reportsDir, { recursive: true });
       const domain = result.url.replace(/https?:\/\//, "").replace(/[\/:]/g, "_");
       const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      const reportPath = path26.join(reportsDir, `${timestamp}-${domain}.md`);
+      const reportPath = path28.join(reportsDir, `${timestamp}-${domain}.md`);
       const header = `# SEO Audit: ${result.url}
 
 **Date:** ${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}
@@ -9643,7 +10538,7 @@ ${"\u2550".repeat(60)}`);
         const { writeDataSidecar: writeDataSidecar2 } = await Promise.resolve().then(() => (init_structured_output(), structured_output_exports));
         writeDataSidecar2(reportPath, result.data);
       }
-      fs26.writeFileSync(reportPath, reportContent);
+      fs27.writeFileSync(reportPath, reportContent);
       console.log(`
 \u{1F4DD} Report saved: ${reportPath}`);
     }
@@ -9759,7 +10654,7 @@ ${"\u2550".repeat(60)}`);
     }
     return;
   }
-  const files = fs26.readdirSync(postsDir).filter((f) => f.endsWith(".mdx"));
+  const files = fs27.readdirSync(postsDir).filter((f) => f.endsWith(".mdx"));
   console.log(`\u{1F4C1} ${files.length} posts
 `);
   let candidates = files.map((f) => {
@@ -9768,7 +10663,7 @@ ${"\u2550".repeat(60)}`);
     const prediction = predictPriority(slug, gsc);
     return {
       slug,
-      filePath: path26.join(postsDir, f),
+      filePath: path28.join(postsDir, f),
       priority: prediction.totalScore || 0,
       gsc,
       patterns: prediction.patterns
@@ -9805,7 +10700,7 @@ ${"\u2500".repeat(60)}`);
         initBrain2();
         const fm = (() => {
           try {
-            const raw = fs26.readFileSync(c.filePath, "utf8");
+            const raw = fs27.readFileSync(c.filePath, "utf8");
             const match = raw.match(/^---\n([\s\S]*?)\n---/);
             return {};
           } catch {
@@ -9822,7 +10717,7 @@ ${"\u2500".repeat(60)}`);
     }
     if (!DRY_RUN && r.after) {
       try {
-        const raw = fs26.readFileSync(c.filePath, "utf8");
+        const raw = fs27.readFileSync(c.filePath, "utf8");
         const parsed = await Promise.resolve().then(() => (init_mdx_parser(), mdx_parser_exports));
         const fm = parsed.parseMdx(raw).frontmatter;
         recordContentSnapshot(c.slug, {
@@ -9963,6 +10858,8 @@ var HELP = `
     publish [--go]       Publish unpublished posts
     cluster <seed>       Semantic topic cluster plan
     brief <keyword>      SEO content brief
+    citations [--topic]  AI citation probe run (ChatGPT/Gemini/Perplexity)
+    sov                  Share-of-voice dashboard from citation history
     orchestrate <slug>   Orchestrator-based pipeline (dependency resolution)
     run <slug>           Alias for orchestrate
     brain                Brain summary + vault stats + next actions

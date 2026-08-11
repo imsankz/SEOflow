@@ -104,4 +104,5 @@ export const ALL_STEPS: StepDefinition[] = [
   // Final
   { id: 'reciprocal-links', name: 'Reciprocal Internal Links', phase: 'final', dependsOn: ['fix-frontmatter'], requiresIntegrations: [] },
   { id: 'report-export', name: 'Report Export', phase: 'final', dependsOn: ['schema-validation', 'quality-audit', 'technical-audit', 'fact-check'], requiresIntegrations: [] },
+  { id: 'citations', name: 'AI Citation Probe', phase: 'final', dependsOn: [], requiresIntegrations: ['citations-probe'] },
 ];

@@ -19,7 +19,8 @@ export type IntegrationId =
   | 'ahrefs'
   | 'ubersuggest'
   | 'gsc-live'
-  | 'gsc-csv';
+  | 'gsc-csv'
+  | 'citations-probe';
 
 export interface IntegrationStatus {
   id: IntegrationId;
@@ -146,6 +147,17 @@ const CHECKS: Record<IntegrationId, { name: string; check: () => IntegrationStat
         reason: undefined,
       };
     },
+  },
+  'citations-probe': {
+    name: 'AI Citation Probe',
+    check: () => ({
+      id: 'citations-probe',
+      name: 'AI Citation Probe',
+      available: envExists('OPENROUTER_API_KEY') || envExists('GEMINI_API_KEY'),
+      reason: !envExists('OPENROUTER_API_KEY') && !envExists('GEMINI_API_KEY')
+        ? 'No AI key — set OPENROUTER_API_KEY or GEMINI_API_KEY'
+        : undefined,
+    }),
   },
 };
 

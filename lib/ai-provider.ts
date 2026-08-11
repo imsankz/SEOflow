@@ -29,6 +29,15 @@ export function getAiCallCount(): number {
   return _runCounter.count;
 }
 
+/**
+ * Bump the run-level call counter without issuing an AI call.
+ * Used by integrations that make their own REST calls (e.g. the AI Citation
+ * Tracker) so they share the same per-run budget as aiChat()/aiChatWithRetry().
+ */
+export function bumpAiCallCount(): void {
+  _runCounter.count++;
+}
+
 /** Check if the run-level budget is exceeded. Returns true if the call should proceed. */
 function checkBudget(task: string): boolean {
   try {
