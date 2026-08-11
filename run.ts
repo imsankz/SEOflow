@@ -13,6 +13,7 @@
  *   seoflow publish [--go]                 Publish unpublished posts
  *   seoflow cluster <seed-keyword>         Generate semantic topic cluster plan
  *   seoflow brief <keyword>                Generate SEO content brief
+ *   seoflow bluf <slug>                    Generate BLUF summary (bottom-line-up-front)
  *   seoflow extensions                     List supported optional extensions
  *   seoflow extensions install <id>       Install an optional extension
  *   seoflow extensions status             Show installed extension state
@@ -66,11 +67,12 @@ const MODE = (() => {
   if (VERB === 'publish') return 'publish';
   if (VERB === 'cluster') return 'cluster';
   if (VERB === 'brief') return 'brief';
+  if (VERB === 'bluf') return 'bluf';
   const i = rawArgs.indexOf('--mode');
   const modeArg = i !== -1 ? rawArgs[i + 1] : 'all';
 
   // Validate mode
-  const validModes = ['all', 'meta', 'links', 'affiliates', 'images', 'keywords', 'neuron', 'content', 'review', 'factcheck', 'schema', 'technical', 'quality', 'geo', 'report', 'reciprocal-links'];
+  const validModes = ['all', 'meta', 'links', 'affiliates', 'images', 'keywords', 'neuron', 'content', 'review', 'factcheck', 'schema', 'technical', 'quality', 'geo', 'bluf', 'report', 'reciprocal-links'];
   return validModes.includes(modeArg) ? modeArg : 'all';
 })();
 
@@ -127,6 +129,81 @@ async function cmdBrief(): Promise<void> {
   console.log(`   File: content-briefs/${slug}-brief.json`);
   console.log(`   Target word count: ${brief.targetWordCount.toLocaleString()} words`);
   console.log(`   Sections: ${brief.outline.length}`);
+  console.log('');
+}
+
+// ─── Verb: bluf ───────────────────────────────────────────────────────────────
+async function cmdBluf(): Promise<void> {
+  loadEnv();
+  loadConfig();
+
+  const slug = VERB_ARG || rawArgs.find(arg => !arg.startsWith('--'));
+  if (!slug) {
+    console.log('\n❌ No post slug provided');
+    console.log('Usage: seoflow bluf <slug>\n');
+    process.exit(1);
+  }
+  const safeSlug = slug.replace(/[\r\n]/g, ' ');
+
+  console.log(`\n📌 Generating BLUF Summary: "${safeSlug}"`);
+
+  const { generateBluf, saveBluf } = await import('./lib/bluf');
+  const result = await generateBluf(slug);
+
+  if (!result || result.degraded) {
+    const message = (result?.message || 'BLUF skipped — no AI key configured').replace(/[\r\n]/g, ' ');
+    console.log(`\n⏭  ${message}`);
+    console.log('   Set GEMINI_API_KEY or OPENROUTER_API_KEY to enable BLUF summaries.');
+    console.log('');
+    return;
+  }
+
+  console.log(`\n${'═'.repeat(60)}`);
+  console.log(`📌 BLUF SUMMARY: ${result.title}`);
+  console.log(`${'═'.repeat(60)}`);
+
+  if (result.blufStatement) {
+    console.log(`\n${result.blufStatement}\n`);
+  }
+
+  if (result.quickAnswer) {
+    console.log(`Quick Answer:`);
+    console.log(`${result.quickAnswer}\n`);
+  }
+
+  if (result.keyFacts.length > 0) {
+    console.log(`Key Facts:`);
+    const factWidth = Math.max('Fact'.length, ...result.keyFacts.map(k => k.fact.length));
+    console.log(`  ${'FACT'.padEnd(factWidth)}  DETAIL`);
+    console.log(`  ${'─'.repeat(factWidth)}  ${'─'.repeat(60)}`);
+    for (const kf of result.keyFacts) {
+      console.log(`  ${kf.fact.padEnd(factWidth)}  ${kf.detail.slice(0, 100)}`);
+    }
+    console.log('');
+  }
+
+  if (result.sections.length > 0) {
+    console.log(`Scannable Sections:`);
+    for (const s of result.sections) {
+      console.log(`  • ${s.heading}`);
+      if (s.summary) console.log(`      ${s.summary}`);
+    }
+    console.log('');
+  }
+
+  if (result.qaPairs.length > 0) {
+    console.log(`Q&A:`);
+    for (const q of result.qaPairs) {
+      console.log(`  Q: ${q.question}`);
+      console.log(`  A: ${q.answer}`);
+    }
+    console.log('');
+  }
+
+  const { mdPath, jsonPath } = saveBluf(result);
+  console.log(`✅ BLUF summary generated!`);
+  console.log(`   View: cat ${mdPath}`);
+  console.log(`   File: ${jsonPath}`);
   console.log('');
 }
 
@@ -477,6 +554,7 @@ export async function runPipeline(): Promise<void> {
 
   if (VERB === 'cluster') { await cmdCluster(); return; }
   if (VERB === 'brief') { await cmdBrief(); return; }
+  if (VERB === 'bluf') { await cmdBluf(); return; }
 
   // URL audit mode — single URL, skip file-based pipeline
   if (VERB === 'audit' && VERB_ARG && isUrl(VERB_ARG)) {

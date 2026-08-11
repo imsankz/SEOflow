@@ -46,7 +46,7 @@ function checkBudget(task: string): boolean {
 
 /** Map legacy task names to provider tiers */
 function taskToTier(task: string): 'synthesis' | 'routing' {
-  const synthesisTasks = ['content-audit', 'seo-review', 'generate', 'cluster', 'fact-check'];
+  const synthesisTasks = ['content-audit', 'seo-review', 'generate', 'cluster', 'fact-check', 'bluf'];
   return synthesisTasks.includes(task) ? 'synthesis' : 'routing';
 }
 

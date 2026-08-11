@@ -16,6 +16,7 @@
  *   seoflow publish [--go]             Publish unpublished posts
  *   seoflow cluster <seed>             Semantic topic cluster plan
  *   seoflow brief <keyword>            SEO content brief
+ *   seoflow bluf <slug>                Generate BLUF summary (bottom-line-up-front)
  *   seoflow orchestrate <slug>         Orchestrator-based pipeline
  *   seoflow run <slug>                 Alias for orchestrate
  *   seoflow brain                      Brain summary + vault stats
@@ -44,6 +45,7 @@ const HELP = `
     publish [--go]       Publish unpublished posts
     cluster <seed>       Semantic topic cluster plan
     brief <keyword>      SEO content brief
+    bluf <slug>          Generate BLUF summary (bottom-line-up-front)
     orchestrate <slug>   Orchestrator-based pipeline (dependency resolution)
     run <slug>           Alias for orchestrate
     brain                Brain summary + vault stats + next actions
