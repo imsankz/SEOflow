@@ -29,13 +29,15 @@ except ImportError:
     sys.exit(1)
 
 try:
-    from google_auth import get_oauth_credentials, load_config
+    from google_auth import get_oauth_credentials, load_config, get_service_account_credentials
 except ImportError:
     import os
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from google_auth import get_oauth_credentials, load_config
+    from google_auth import get_oauth_credentials, load_config, get_service_account_credentials
 
 GSC_SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"]
+# Write scope required for sitemaps().submit() (sitemaps-submit command)
+GSC_WRITE_SCOPES = ["https://www.googleapis.com/auth/webmasters"]
 INDEXATION_NOTE = (
     "Sitemaps API contents[].submitted reflects submitted URL counts only. "
     "Use the URL Inspection API as the indexation truth for whether specific "
@@ -43,9 +45,9 @@ INDEXATION_NOTE = (
 )
 
 
-def _build_gsc_service():
+def _build_gsc_service(scopes=None):
     """Build the Search Console API service."""
-    credentials = get_oauth_credentials(GSC_SCOPES)
+    credentials = get_oauth_credentials(scopes or GSC_SCOPES)
     if not credentials:
         return None
     try:
@@ -310,6 +312,43 @@ def list_sitemaps(site_url: str) -> dict:
     return result
 
 
+def submit_sitemap(site_url: str, sitemap_path: str) -> dict:
+    """
+    Submit (or re-submit) a sitemap for a GSC property using write scope.
+
+    Args:
+        site_url: GSC property URL.
+        sitemap_path: Absolute path of the sitemap, e.g. 'https://example.com/sitemap.xml'.
+
+    Returns:
+        Dictionary with submission status.
+    """
+    result = {"property": site_url, "sitemap_path": sitemap_path, "submitted": False, "error": None}
+
+    # Prefer the service account for write operations: the generic OAuth/ADC
+    # chain may resolve to an authorized_user token that only carries the
+    # readonly scope, causing 403 "insufficient authentication scopes".
+    credentials = get_service_account_credentials(GSC_WRITE_SCOPES)
+    if not credentials:
+        credentials = get_oauth_credentials(GSC_WRITE_SCOPES)
+    if not credentials:
+        result["error"] = "Could not build GSC service with write scope."
+        return result
+    try:
+        service = build("searchconsole", "v1", credentials=credentials)
+    except Exception as e:
+        result["error"] = f"Error building GSC service: {e}"
+        return result
+
+    try:
+        service.sitemaps().submit(siteUrl=site_url, feedpath=sitemap_path).execute()
+        result["submitted"] = True
+    except Exception as e:
+        result["error"] = f"Error submitting sitemap: {e}"
+
+    return result
+
+
 def list_sites() -> dict:
     """
     List all verified GSC properties.
@@ -345,8 +384,8 @@ def main():
         "command",
         nargs="?",
         default="query",
-        choices=["query", "sitemaps", "sites"],
-        help="Command: query (default), sitemaps, sites",
+        choices=["query", "sitemaps", "sitemaps-submit", "sites"],
+        help="Command: query (default), sitemaps, sitemaps-submit, sites",
     )
     parser.add_argument(
         "--property", "-p",
@@ -369,6 +408,10 @@ def main():
     )
     parser.add_argument("--country", help="Filter by country (ISO 3166-1 alpha-3, e.g., USA)")
     parser.add_argument("--json", "-j", action="store_true", help="Output as JSON")
+    parser.add_argument(
+        "--sitemap-path",
+        help="Sitemap URL/path to submit (for sitemaps-submit command), e.g. https://example.com/sitemap.xml",
+    )
 
     args = parser.parse_args()
 
@@ -383,6 +426,11 @@ def main():
 
     if args.command == "sites":
         result = list_sites()
+    elif args.command == "sitemaps-submit":
+        if not args.sitemap_path:
+            print("Error: --sitemap-path required for sitemaps-submit", file=sys.stderr)
+            sys.exit(1)
+        result = submit_sitemap(prop, args.sitemap_path)
     elif args.command == "sitemaps":
         result = list_sitemaps(prop)
     else:
