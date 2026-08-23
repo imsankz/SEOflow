@@ -2,6 +2,24 @@
 
 All notable changes to SeoFlow will be documented in this file.
 
+## [0.3.1] — 2026-08-23
+
+> Ships everything from [0.3.0] as well — that version was never pushed to npm.
+
+### Added
+- **OpenAI-compatible provider** — new LLM provider (`openai`) joins the fallback chain: set `OPENAI_API_KEY` (and optionally `OPENAI_BASE_URL` / `OPENAI_MODEL`) to use any OpenAI-compatible endpoint (OpenAI, Groq, Together, local vLLM, etc.).
+
+### Changed
+- **PAGESPEED_API_KEY is the canonical PSI/CrUX key** — `GOOGLE_API_KEY` remains a legacy alias; key can also come from `~/.config/seoflow/google-api.json`. Application Default Credentials now tried before service accounts for broader GSC property grants.
+
+### Security
+- **Command injection eliminated** — every shell-string child process call (`execSync` with interpolated URLs/content) replaced with argv-based spawning across python-manager, technical/PSI, content-quality, drift, backlinks, reports, and url-auditor. Auditing untrusted URLs can no longer execute commands.
+- **Mock data is now labeled** — fabricated fallback metrics (PSI scores, CrUX field data, drift baselines, backlink profiles, content quality scores) are marked `isMock: true` and print a loud stderr warning instead of passing silently as real measurements.
+
+### Fixed
+- **Published CLI routes `citations`, `sov`, and `bluf`** — these verbs were advertised but returned "Unknown command" from the npm-installed binary.
+- **`BacklinkAnalyzer.verify()` works** — was calling `verify_backlinks.py` with flags the script doesn't accept; now matches its actual `--target` / stdin contract.
+
 ## [0.3.0] — 2026-08-11
 
 ### Added
