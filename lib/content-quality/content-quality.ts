@@ -20,6 +20,7 @@ export interface ContentQualityResult {
   aiPatternCount: number;
   fillerWords: string[];
   claimsNeedingCitation: string[];
+  isMock?: boolean; // true when real analysis was unavailable
 }
 
 export interface ContentHumanizeResult {
@@ -53,15 +54,15 @@ export class ContentQualityAnalyzer {
       }
 
       const args: string[] = [
-        `--text "${this.escapeQuotes(text)}"`,
+        '--text', text,
       ];
 
       if (title) {
-        args.push(`--title "${this.escapeQuotes(title)}"`);
+        args.push('--title', title);
       }
 
       if (category) {
-        args.push(`--category "${this.escapeQuotes(category)}"`);
+        args.push('--category', category);
       }
 
       args.push('--json');
@@ -102,7 +103,7 @@ export class ContentQualityAnalyzer {
       const result = PythonManager.run({
         scriptName: 'content_humanize',
         args: [
-          `--text "${this.escapeQuotes(text)}"`,
+          '--text', text,
           '--json',
         ],
         timeout: 60000,
@@ -146,11 +147,11 @@ export class ContentQualityAnalyzer {
       }
 
       const args: string[] = [
-        `--text "${this.escapeQuotes(text)}"`,
+        '--text', text,
       ];
 
       if (title) {
-        args.push(`--title "${this.escapeQuotes(title)}"`);
+        args.push('--title', title);
       }
 
       args.push('--json');
@@ -184,16 +185,10 @@ export class ContentQualityAnalyzer {
   }
 
   /**
-   * Escapes quotes for shell command
-   */
-  private static escapeQuotes(text: string): string {
-    return text.replace(/"/g, '\\"').replace(/\n/g, '\\n');
-  }
-
-  /**
    * Mocks content quality result
    */
   private static mockQualityResult(text: string): ContentQualityResult {
+    console.warn('[seoflow] WARNING: content quality analyzer unavailable — returning MOCK scores (not a real analysis).');
     const wordCount = text.split(/\s+/).filter(Boolean).length;
     const hasPersonalExperience = /I\s+(have|had|went|visited|experienced)/i.test(text);
     const hasSpecificDetails = /\d+(\.\d+)?\s*(€|\$|£|km|miles|hours|days)/i.test(text);
@@ -211,6 +206,7 @@ export class ContentQualityAnalyzer {
       aiPatternCount: 0,
       fillerWords: [],
       claimsNeedingCitation: [],
+      isMock: true,
     };
   }
 }

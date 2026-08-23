@@ -94,7 +94,7 @@ const HELP = `
 // below is forwarded to run.ts by rewriting process.argv.
 const RUN_TS_VERBS = new Set([
   'status', 'audit', 'learn', 'learning', 'generate', 'publish',
-  'cluster', 'brief', 'orchestrate', 'run',
+  'cluster', 'brief', 'citations', 'sov', 'bluf', 'orchestrate', 'run',
   'brain', 'vault', 'research', 'validate',
   // Legacy flag-based invocation: seoflow --dry-run, seoflow --mode meta
   '--dry-run', '--mode', '--slug', '--limit', '--reset-slug',

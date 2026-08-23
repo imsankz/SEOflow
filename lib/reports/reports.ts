@@ -5,7 +5,8 @@
  */
 
 import { PDFGenerator } from './pdf-generator';
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
+import { PythonManager } from '../python/python-manager';
 import path from 'path';
 import fs from 'fs';
 
@@ -59,10 +60,12 @@ export class ReportGenerator {
         return PDFGenerator.generateSimpleReport(data, new URL(data.url).hostname, outputPath);
       } else {
         // Use other formats directly
-        const scriptPath = path.join(process.cwd(), 'python', 'google_report.py');
-        const cmd = this.buildCommand(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath);
+        const args = this.buildArgs(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath);
 
-        execSync(cmd, { encoding: 'utf8', stdio: 'ignore' });
+        const result = spawnSync(PythonManager.getPythonPath(), args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
+        if (result.error || (result.status !== 0 && result.status !== null)) {
+          throw new Error(result.stderr || result.error?.message || `google_report exited with status ${result.status}`);
+        }
 
         if (fs.existsSync(outputPath)) {
           console.log(`✅ Report generated: ${outputPath}`);
@@ -84,9 +87,10 @@ export class ReportGenerator {
   }
 
   /**
-   * Builds the Python command
+   * Builds the argv array for the Python report generator.
+   * Values are passed as individual argv entries — never through a shell.
    */
-  private static buildCommand(
+  private static buildArgs(
     data: ReportData,
     format: string,
     includeTechnical: boolean,
@@ -94,46 +98,45 @@ export class ReportGenerator {
     includeSchema: boolean,
     includeBacklinks: boolean,
     outputPath: string
-  ): string {
+  ): string[] {
     const args = [
-      'python3',
       path.join(process.cwd(), 'python', 'google_report.py'),
-      '--url', `"${data.url}"`,
+      '--url', data.url,
       '--score', data.score.toString(),
-      '--output', `"${outputPath}"`,
+      '--output', outputPath,
       '--format', format,
     ];
 
     if (includeTechnical && data.technical) {
-      args.push('--technical', `"${JSON.stringify(data.technical)}"`);
+      args.push('--technical', JSON.stringify(data.technical));
     }
 
     if (includeContent && data.content) {
-      args.push('--content', `"${JSON.stringify(data.content)}"`);
+      args.push('--content', JSON.stringify(data.content));
     }
 
     if (includeSchema && data.schema) {
-      args.push('--schema', `"${JSON.stringify(data.schema)}"`);
+      args.push('--schema', JSON.stringify(data.schema));
     }
 
     if (includeBacklinks && data.backlinks) {
-      args.push('--backlinks', `"${JSON.stringify(data.backlinks)}"`);
+      args.push('--backlinks', JSON.stringify(data.backlinks));
     }
 
     // Add issues, warnings, and quick wins
     if (data.issues.length > 0) {
-      args.push('--issues', `"${JSON.stringify(data.issues)}"`);
+      args.push('--issues', JSON.stringify(data.issues));
     }
 
     if (data.warnings.length > 0) {
-      args.push('--warnings', `"${JSON.stringify(data.warnings)}"`);
+      args.push('--warnings', JSON.stringify(data.warnings));
     }
 
     if (data.quickWins.length > 0) {
-      args.push('--quick-wins', `"${JSON.stringify(data.quickWins)}"`);
+      args.push('--quick-wins', JSON.stringify(data.quickWins));
     }
 
-    return args.join(' ');
+    return args;
   }
 
   /**

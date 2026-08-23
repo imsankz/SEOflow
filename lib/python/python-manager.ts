@@ -1,9 +1,9 @@
-import { exec, execSync } from 'child_process';
+import { spawnSync, execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
 import { promisify } from 'util';
 
-const execPromise = promisify(exec);
+const execFilePromise = promisify(execFile);
 
 export interface PythonOptions {
   scriptName: string;
@@ -60,8 +60,8 @@ export class PythonManager {
    */
   static isPythonAvailable(): boolean {
     try {
-      execSync(`${this.getPythonPath()} --version`, { stdio: 'ignore' });
-      return true;
+      const result = spawnSync(this.getPythonPath(), ['--version'], { stdio: 'ignore' });
+      return !result.error && result.status === 0;
     } catch (error) {
       return false;
     }
@@ -71,9 +71,16 @@ export class PythonManager {
    * Check if a specific Python package is installed
    */
   static isPackageInstalled(packageName: string): boolean {
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(packageName)) {
+      return false;
+    }
     try {
-      execSync(`${this.getPythonPath()} -c "import ${packageName}"`, { stdio: 'ignore' });
-      return true;
+      const result = spawnSync(
+        this.getPythonPath(),
+        ['-c', `import ${packageName}`],
+        { stdio: 'ignore' },
+      );
+      return !result.error && result.status === 0;
     } catch (error) {
       return false;
     }
@@ -97,6 +104,9 @@ export class PythonManager {
 
   /**
    * Run a Python script with optional arguments
+   *
+   * `args` must be individual argv entries (no shell quoting) — they are
+   * passed directly to the process, never through a shell.
    */
   static run(options: PythonOptions): PythonResult {
     const { scriptName, args = [], timeout = 60000, workingDir = process.cwd() } = options;
@@ -111,21 +121,27 @@ export class PythonManager {
       };
     }
 
-    const pythonPath = this.getPythonPath();
-    const command = `${pythonPath} "${scriptPath}" ${args.join(' ')}`;
-
     try {
-      const result = execSync(command, {
+      const result = spawnSync(this.getPythonPath(), [scriptPath, ...args], {
         encoding: 'utf8',
         cwd: workingDir,
         timeout,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
 
+      if (result.error) {
+        return {
+          stdout: result.stdout || '',
+          stderr: result.stderr || result.error.message,
+          code: result.status || 1,
+          error: result.error,
+        };
+      }
+
       return {
-        stdout: result,
-        stderr: '',
-        code: 0,
+        stdout: result.stdout || '',
+        stderr: result.stderr || '',
+        code: result.status ?? 1,
       };
     } catch (error: any) {
       return {
@@ -139,27 +155,28 @@ export class PythonManager {
 
   /**
    * Run a Python script asynchronously
+   *
+   * `args` must be individual argv entries (no shell quoting) — they are
+   * passed directly to the process, never through a shell.
    */
   static async runAsync(options: PythonOptions): Promise<PythonResult> {
     const { scriptName, args = [], timeout = 60000, workingDir = process.cwd() } = options;
 
     const scriptPath = this.resolveScriptPath(scriptName, workingDir);
     if (!scriptPath || !fs.existsSync(scriptPath)) {
-      return Promise.resolve({
+      return {
         stdout: '',
         stderr: `Script not found: ${scriptPath}`,
         code: 1,
         error: new Error(`Script not found: ${scriptPath}`),
-      });
+      };
     }
 
-    const pythonPath = this.getPythonPath();
-    const command = `${pythonPath} "${scriptPath}" ${args.join(' ')}`;
-
     try {
-      const result = await execPromise(command, {
+      const result = await execFilePromise(this.getPythonPath(), [scriptPath, ...args], {
         cwd: workingDir,
         timeout,
+        maxBuffer: 10 * 1024 * 1024,
       });
 
       return {
@@ -171,7 +188,7 @@ export class PythonManager {
       return {
         stdout: error.stdout || '',
         stderr: error.stderr || error.message,
-        code: error.code || 1,
+        code: typeof error.code === 'number' ? error.code : 1,
         error,
       };
     }
@@ -180,15 +197,26 @@ export class PythonManager {
   /**
    * Run pip commands
    */
-  static runPip(command: string): PythonResult {
-    const pipCommand = `${this.getPythonPath()} -m pip ${command}`;
-
+  static runPip(pipArgs: string[]): PythonResult {
     try {
-      const result = execSync(pipCommand, { encoding: 'utf8' });
+      const result = spawnSync(this.getPythonPath(), ['-m', 'pip', ...pipArgs], {
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+
+      if (result.error) {
+        return {
+          stdout: result.stdout || '',
+          stderr: result.stderr || result.error.message,
+          code: result.status || 1,
+          error: result.error,
+        };
+      }
+
       return {
-        stdout: result,
-        stderr: '',
-        code: 0,
+        stdout: result.stdout || '',
+        stderr: result.stderr || '',
+        code: result.status ?? 1,
       };
     } catch (error: any) {
       return {
@@ -213,7 +241,7 @@ export class PythonManager {
       };
     }
 
-    return this.runPip(`install -r "${requirementsPath}"`);
+    return this.runPip(['install', '-r', requirementsPath]);
   }
 
   /**

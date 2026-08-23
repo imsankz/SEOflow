@@ -9,9 +9,9 @@ import { describe, it } from 'node:test';
 import { detectAll, selectProvider } from '../lib/providers';
 
 describe('provider registry', () => {
-  it('detectAll returns all 6 providers', async () => {
+  it('detectAll returns all 7 providers', async () => {
     const all = await detectAll();
-    assert.equal(all.length, 6);
+    assert.equal(all.length, 7);
     const ids = all.map(a => a.id).sort();
     assert.deepEqual(ids, [
       'anthropic',
@@ -19,6 +19,7 @@ describe('provider registry', () => {
       'codex-cli',
       'gemini',
       'gemini-cli',
+      'openai',
       'openrouter',
     ]);
   });

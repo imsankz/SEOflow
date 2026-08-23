@@ -45,10 +45,10 @@ export class PDFGenerator {
       const result = PythonManager.run({
         scriptName: 'google_report',
         args: [
-          `--type ${data.type}`,
-          `--data "${tempDataPath}"`,
-          `--domain ${data.domain}`,
-          `--output "${outputPath}"`,
+          '--type', data.type,
+          '--data', tempDataPath,
+          '--domain', data.domain,
+          '--output', outputPath,
         ],
         timeout: 120000, // 2 minutes
       });

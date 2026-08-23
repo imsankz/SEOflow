@@ -10,13 +10,33 @@
  *   3. Feed signals to AI provider for analysis
  *   4. Return structured audit data
  */
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { extractDataBlock, type TechnicalData, isTechnicalData } from './structured-output';
 import { appendLog, writeBrain } from './brain';
 import { recordAuditRun, recordSignal, initBrain } from './brain/brain-manager';
 import { BacklinkAnalyzer } from './backlinks/backlinks';
+
+/**
+ * Resolve a `python/<script>.py` path. When seoflow is installed as a
+ * dependency in a site repo, `process.cwd()` is the site's directory, not
+ * seoflow's — so this also checks paths relative to this module (handles
+ * both unbundled dev (lib/url-auditor.ts → ../python) and the
+ * esbuild-bundled dist output (dist/run.js → ../python, dist/bin/cli.js →
+ * ../../python)). Resolved per-script (not per-dir) since a site may have a
+ * legacy partial `python/` copy that shadows only some scripts.
+ */
+function resolvePythonScript(scriptName: string): string {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    path.join(process.cwd(), 'python', scriptName),
+    path.resolve(here, '..', 'python', scriptName),
+    path.resolve(here, '..', '..', 'python', scriptName),
+  ];
+  return candidates.find((c) => fs.existsSync(c)) || candidates[0];
+}
 
 export interface PageSignals {
   url: string;
@@ -69,6 +89,21 @@ export interface URLAuditResult {
 /** Check if a string is a URL */
 export function isUrl(s: string): boolean {
   return /^https?:\/\//i.test(s);
+}
+
+/** Run a python script with argv args (no shell). Returns stdout or null. */
+function runPy(scriptPath: string, args: string[], timeoutMs: number): string | null {
+  try {
+    const result = spawnSync('python3', [scriptPath, ...args], {
+      timeout: timeoutMs,
+      encoding: 'utf-8',
+      maxBuffer: 10 * 1024 * 1024,
+    });
+    if (result.error || (result.status !== null && result.status !== 0)) return null;
+    return result.stdout || null;
+  } catch {
+    return null;
+  }
 }
 
 /** Simple HTML parser for extracting key SEO signals */
@@ -155,15 +190,12 @@ async function nodeFetchSignals(url: string): Promise<PageSignals | null> {
 
 /** Fetch page signals — uses fetch_page.py (full HTML), render_page.py as fallback for SPA */
 async function fetchPageSignals(url: string): Promise<PageSignals> {
-  const scriptsDir = path.join(process.cwd(), 'python');
-
   // Primary: fetch_page.py — returns full HTML, fast, no truncation
-  const fetchPath = path.join(scriptsDir, 'fetch_page.py');
+  const fetchPath = resolvePythonScript('fetch_page.py');
   if (fs.existsSync(fetchPath)) {
     try {
-      const raw = execSync(`python3 "${fetchPath}" "${url}" 2>/dev/null`, {
-        timeout: 20000, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024,
-      });
+      const raw = runPy(fetchPath, [url], 20000);
+      if (!raw) throw new Error('fetch_page.py returned no output');
       const parsed = parseHtmlSignals(raw);
       return {
         url, status: 200, contentLength: raw.length,
@@ -178,19 +210,17 @@ async function fetchPageSignals(url: string): Promise<PageSignals> {
   }
 
   // Fallback: render_page.py for JS-rendered/SPA sites
-  const renderPath = path.join(scriptsDir, 'render_page.py');
+  const renderPath = resolvePythonScript('render_page.py');
   if (fs.existsSync(renderPath)) {
     try {
-      const raw = execSync(`python3 "${renderPath}" "${url}" --json 2>/dev/null`, {
-        timeout: 25000, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024,
-      });
+      const raw = runPy(renderPath, [url, '--json'], 25000);
+      if (!raw) throw new Error('render_page.py returned no output');
       const data = JSON.parse(raw);
       const html = data.content || '';
       try {
         // Try to get full content from fetch_page.py inside render (without JS deps)
-        const fetchRaw = execSync(`python3 "${fetchPath}" "${url}" 2>/dev/null`, {
-          timeout: 15000, encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024,
-        });
+        const fetchRaw = runPy(fetchPath, [url], 15000);
+        if (!fetchRaw) throw new Error('fetch_page.py returned no output');
         const parsed = parseHtmlSignals(fetchRaw);
         return {
           url: data.url || url, status: data.status_code || 0,
@@ -229,7 +259,10 @@ async function fetchPageSignals(url: string): Promise<PageSignals> {
 /** Basic fallback — fetch URL with raw HTTP */
 function basicFetchSignals(url: string): PageSignals {
   try {
-    const raw = execSync(`curl -sI -L "${url}" 2>/dev/null | head -20`, { timeout: 10000, encoding: 'utf-8' });
+    const result = spawnSync('curl', ['-sI', '-L', url], {
+      timeout: 10000, encoding: 'utf-8', maxBuffer: 1024 * 1024,
+    });
+    const raw = (result.stdout || '').split('\n').slice(0, 20).join('\n');
     const statusMatch = raw.match(/HTTP\/[\d.]+ (\d+)/);
     const status = statusMatch ? parseInt(statusMatch[1], 10) : 0;
     return { url, status, contentLength: 0, title: '', description: '', canonical: '', h1: [], h2: [], robots: '', jsonLd: [], hasSchema: false, metaRobots: '', ogTags: {}, links: { internal: 0, external: 0 }, loadTime: 0 };
@@ -241,30 +274,48 @@ function basicFetchSignals(url: string): PageSignals {
 /** Run PageSpeed Insights check */
 function runPSI(url: string): PSISummary | null {
   try {
-    // Try the Python script first
-    const scriptPath = path.join(process.cwd(), 'python', 'pagespeed_check.py');
-    if (fs.existsSync(scriptPath)) {
-      const raw = execSync(`python3 "${scriptPath}" "${url}" --json 2>/dev/null`, { timeout: 60000, encoding: 'utf-8' });
-      const data = JSON.parse(raw);
-      return {
-        score: data.score ?? 50,
-        lcp: data.lcp ?? 0,
-        inp: data.inp ?? 0,
-        cls: data.cls ?? 0,
-        fcp: data.fcp ?? 0,
-        tbt: data.tbt ?? 0,
-      };
-    }
-  } catch { /* silent fallback */ }
+    const scriptPath = resolvePythonScript('pagespeed_check.py');
+    if (!fs.existsSync(scriptPath)) return null;
+
+    const apiKey = process.env.PAGESPEED_API_KEY || process.env.GOOGLE_API_KEY;
+    const args = [url, '--psi-only', '--strategy', 'mobile'];
+    if (apiKey) args.push('--api-key', apiKey);
+    // --psi-only --strategy mobile: one Lighthouse call (fast). The default
+    // combined shape has no top-level score/lcp, which used to yield bogus
+    // 50/100 or N/A reports; --psi-only returns the per-strategy dict.
+    const raw = runPy(scriptPath, [...args, '--json'], 120000);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    const psi = data?.psi?.mobile;
+    if (!psi) return null;
+
+    const lab = psi.lab_metrics || {};
+    const msToS = (v?: number) => (typeof v === 'number' ? Math.round((v / 1000) * 10) / 10 : 0);
+    const perf = psi.lighthouse_scores?.performance;
+    return {
+      score: typeof perf === 'number' ? Math.round(perf) : 0,
+      lcp: msToS(lab['largest-contentful-paint']?.value),
+      inp: Math.round(lab['interaction-to-next-paint']?.value ?? 0),
+      cls: lab['cumulative-layout-shift']?.value ?? 0,
+      fcp: msToS(lab['first-contentful-paint']?.value),
+      tbt: Math.round(lab['total-blocking-time']?.value ?? 0),
+    };
+  } catch { /* silent fallback — report shows N/A */ }
   return null;
 }
 
 /** Check GSC indexation status via gsc_inspect.py */
 function checkGscIndexation(url: string): GscIndexationStatus | null {
   try {
-    const scriptPath = path.join(process.cwd(), 'python', 'gsc_inspect.py');
+    const scriptPath = resolvePythonScript('gsc_inspect.py');
     if (!fs.existsSync(scriptPath)) return null;
-    const raw = execSync(`python3 "${scriptPath}" "${url}" 2>/dev/null`, { timeout: 30000, encoding: 'utf-8' });
+    // gsc_inspect.py otherwise falls back to the machine-global default_property
+    // in ~/.config/seoflow/google-api.json, which may point at a different site.
+    const siteUrl = process.env.GSC_SITE_URL;
+    const args = [url];
+    if (siteUrl) args.push('--site-url', siteUrl);
+    const raw = runPy(scriptPath, args, 30000);
+    if (!raw) return null;
     const lines = raw.split('\n');
     const indexed = lines.some(l => l.toLowerCase().includes('indexed') || l.toLowerCase().includes('submitted'));
     const crawlMatch = raw.match(/last.?crawl.*?(\d{4}-\d{2}-\d{2})/i);
@@ -275,9 +326,10 @@ function checkGscIndexation(url: string): GscIndexationStatus | null {
 /** Auto-generate schema via schema_generate.py */
 function autoGenerateSchema(url: string, signals: PageSignals): AutoGeneratedSchema | null {
   try {
-    const scriptPath = path.join(process.cwd(), 'python', 'schema_generate.py');
+    const scriptPath = resolvePythonScript('schema_generate.py');
     if (!fs.existsSync(scriptPath)) return null;
-    const raw = execSync(`python3 "${scriptPath}" "${url}" 2>/dev/null`, { timeout: 30000, encoding: 'utf-8' });
+    const raw = runPy(scriptPath, [url], 30000);
+    if (!raw) return null;
     const jsonMatch = raw.match(/\{[\s\S]*"@type"[\s\S]*\}/);
     if (!jsonMatch) return null;
     const parsed = JSON.parse(jsonMatch[0]);

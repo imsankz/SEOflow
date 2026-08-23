@@ -4,7 +4,7 @@
  * Wraps Claude SEO's pagespeed_check.py script
  */
 
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import { PythonManager } from '../python/python-manager';
 import path from 'path';
 
@@ -18,6 +18,7 @@ export interface PSIResult {
   url: string;
   device: 'mobile' | 'desktop';
   strategy: 'mobile' | 'desktop';
+  isMock?: boolean; // true when real measurement was unavailable
 }
 
 export interface CrUXResult {
@@ -27,6 +28,7 @@ export interface CrUXResult {
   origin: string;
   effectiveConnectionType: string;
   formFactor: string;
+  isMock?: boolean; // true when real measurement was unavailable
 }
 
 export interface LCPBreakdown {
@@ -35,6 +37,7 @@ export interface LCPBreakdown {
   loadDuration: number; // Load Duration (ms)
   renderDelay: number; // Render Delay (ms)
   total: number; // Total LCP (ms)
+  isMock?: boolean; // true when real measurement was unavailable
 }
 
 export class PageSpeedInsights {
@@ -55,12 +58,12 @@ export class PageSpeedInsights {
       }
 
       const args: string[] = [
-        `--url "${url}"`,
-        `--strategy ${strategy}`,
+        '--url', url,
+        '--strategy', strategy,
       ];
 
       if (this.apiKey) {
-        args.push(`--api-key "${this.apiKey}"`);
+        args.push('--api-key', this.apiKey);
       }
 
       args.push('--json');
@@ -94,12 +97,12 @@ export class PageSpeedInsights {
       }
 
       const args: string[] = [
-        `--url "${url}"`,
+        '--url', url,
         '--crux-only',
       ];
 
       if (this.apiKey) {
-        args.push(`--api-key "${this.apiKey}"`);
+        args.push('--api-key', this.apiKey);
       }
 
       args.push('--json');
@@ -133,12 +136,12 @@ export class PageSpeedInsights {
       }
 
       const args: string[] = [
-        `--url "${url}"`,
-        `--strategy ${strategy}`,
+        '--url', url,
+        '--strategy', strategy,
       ];
 
       if (this.apiKey) {
-        args.push(`--api-key "${this.apiKey}"`);
+        args.push('--api-key', this.apiKey);
       }
 
       args.push('--json');
@@ -165,6 +168,7 @@ export class PageSpeedInsights {
    * Mocks PSI result for development/testing
    */
   private mockResult(url: string, strategy: 'mobile' | 'desktop'): PSIResult {
+    console.warn(`[seoflow] WARNING: PSI measurement unavailable for ${url} — returning MOCK data (not a real audit).`);
     return {
       lcp: 1.8,
       inp: 150,
@@ -175,6 +179,7 @@ export class PageSpeedInsights {
       url,
       device: strategy,
       strategy,
+      isMock: true,
     };
   }
 
@@ -182,6 +187,7 @@ export class PageSpeedInsights {
    * Mocks CrUX result
    */
   private mockCrUXResult(url: string): CrUXResult {
+    console.warn(`[seoflow] WARNING: CrUX data unavailable for ${url} — returning MOCK data (not real field data).`);
     return {
       lcp: 2.1,
       inp: 180,
@@ -189,6 +195,7 @@ export class PageSpeedInsights {
       origin: new URL(url).origin,
       effectiveConnectionType: '4G',
       formFactor: 'PHONE',
+      isMock: true,
     };
   }
 
@@ -196,12 +203,14 @@ export class PageSpeedInsights {
    * Mocks LCP breakdown
    */
   private mockLCPBreakdown(): LCPBreakdown {
+    console.warn('[seoflow] WARNING: LCP breakdown unavailable — returning MOCK data (not a real measurement).');
     return {
       ttfb: 300,
       loadDelay: 400,
       loadDuration: 800,
       renderDelay: 300,
       total: 1800,
+      isMock: true,
     };
   }
 }
@@ -222,9 +231,11 @@ export function getPSIInstance(apiKey?: string): PageSpeedInsights {
 export function validateUrl(url: string): boolean {
   try {
     const scriptPath = path.join(process.cwd(), 'python', 'url_safety.py');
-    const cmd = `python3 ${scriptPath} --url "${url}"`;
-    execSync(cmd, { encoding: 'utf8', stdio: 'ignore' });
-    return true;
+    const result = spawnSync(PythonManager.getPythonPath(), [scriptPath, '--url', url], {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    return !result.error && result.status === 0;
   } catch {
     return false;
   }

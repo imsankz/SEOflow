@@ -20,6 +20,7 @@ export interface DriftBaseline {
     links: number;
     images: number;
   };
+  isMock?: boolean; // true when real measurement was unavailable
 }
 
 export interface DriftComparison {
@@ -35,6 +36,7 @@ export interface DriftComparison {
   };
   issues: string[];
   warnings: string[];
+  isMock?: boolean; // true when real measurement was unavailable
 }
 
 export class DriftMonitor {
@@ -51,7 +53,7 @@ export class DriftMonitor {
       const result = PythonManager.run({
         scriptName: 'drift_baseline',
         args: [
-          `--url "${url}"`,
+          '--url', url,
           '--json',
         ],
         timeout: 60000,
@@ -95,8 +97,8 @@ export class DriftMonitor {
       const result = PythonManager.run({
         scriptName: 'drift_compare',
         args: [
-          `--baseline ${baselineId}`,
-          `--url "${url}"`,
+          '--baseline', baselineId,
+          '--url', url,
           '--json',
         ],
         timeout: 60000,
@@ -127,7 +129,7 @@ export class DriftMonitor {
       const result = PythonManager.run({
         scriptName: 'drift_history',
         args: [
-          `--url "${url}"`,
+          '--url', url,
           '--json',
         ],
         timeout: 60000,
@@ -149,6 +151,7 @@ export class DriftMonitor {
    * Mocks a baseline
    */
   private static mockBaseline(url: string): DriftBaseline {
+    console.warn(`[seoflow] WARNING: drift baseline capture unavailable for ${url} — returning MOCK data (not a real measurement).`);
     return {
       id: Date.now().toString(),
       url,
@@ -161,6 +164,7 @@ export class DriftMonitor {
         links: 15,
         images: 5,
       },
+      isMock: true,
     };
   }
 
@@ -168,6 +172,7 @@ export class DriftMonitor {
    * Mocks a comparison
    */
   private static mockComparison(baselineId: string, url: string): DriftComparison {
+    console.warn(`[seoflow] WARNING: drift comparison unavailable (baseline ${baselineId}) — returning MOCK data.`);
     const baseline = this.mockBaseline(url);
     const current = {
       ...baseline,
@@ -198,6 +203,7 @@ export class DriftMonitor {
       },
       issues: [],
       warnings: ['Readability score decreased slightly'],
+      isMock: true,
     };
   }
 }

@@ -989,6 +989,88 @@ var init_gemini = __esm({
   }
 });
 
+// lib/providers/openai-compat.ts
+function parseChatCompletion(raw) {
+  try {
+    const data = JSON.parse(raw);
+    return data?.choices?.[0]?.message?.content ?? null;
+  } catch {
+    const lines = raw.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim()).filter((l) => l && l !== "[DONE]");
+    let combined = "";
+    for (const line of lines) {
+      try {
+        const chunk = JSON.parse(line);
+        const delta = chunk?.choices?.[0]?.delta?.content ?? chunk?.choices?.[0]?.message?.content;
+        if (delta) combined += delta;
+      } catch {
+      }
+    }
+    return combined || null;
+  }
+}
+var openaiProvider;
+var init_openai_compat = __esm({
+  "lib/providers/openai-compat.ts"() {
+    "use strict";
+    openaiProvider = {
+      id: "openai",
+      name: "OpenAI-compatible gateway",
+      authMode: "api-key",
+      async availability() {
+        return {
+          id: "openai",
+          name: "OpenAI-compatible gateway",
+          authMode: "api-key",
+          installed: true,
+          authed: !!process.env.OPENAI_API_KEY
+        };
+      },
+      async chat(input) {
+        const apiKey = process.env.OPENAI_API_KEY;
+        if (!apiKey) return null;
+        const baseUrl = (process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
+        const model = input.model || process.env.OPENAI_MODEL || "gpt-4o-mini";
+        try {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), input.timeoutMs ?? 12e4);
+          const res = await fetch(`${baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              model,
+              stream: false,
+              messages: [
+                { role: "system", content: input.systemPrompt },
+                ...input.messages.map((m) => ({ role: m.role, content: m.content }))
+              ],
+              temperature: input.temperature ?? 0.5,
+              max_tokens: input.maxTokens ?? 8192
+            }),
+            signal: controller.signal
+          });
+          clearTimeout(timer);
+          if (!res.ok) {
+            const text2 = await res.text().catch(() => "");
+            console.error(`     OpenAI-compatible gateway HTTP ${res.status}: ${text2.slice(0, 300)}`);
+            return null;
+          }
+          const raw = await res.text();
+          const text = parseChatCompletion(raw);
+          if (!text) return null;
+          return { text };
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : "Unknown error";
+          console.error(`     OpenAI-compatible gateway error: ${msg}`);
+          return null;
+        }
+      }
+    };
+  }
+});
+
 // lib/providers/index.ts
 var providers_exports = {};
 __export(providers_exports, {
@@ -1073,13 +1155,15 @@ var init_providers = __esm({
     init_gemini_cli();
     init_openrouter();
     init_gemini();
+    init_openai_compat();
     ALL = [
       claudeCliProvider,
       codexCliProvider,
       geminiCliProvider,
       anthropicProvider,
       openrouterProvider,
-      geminiProvider
+      geminiProvider,
+      openaiProvider
     ];
     providers = {};
     for (const p of ALL) {
@@ -1091,7 +1175,8 @@ var init_providers = __esm({
       "gemini-cli",
       "anthropic",
       "openrouter",
-      "gemini"
+      "gemini",
+      "openai"
     ];
   }
 });
@@ -2317,15 +2402,15 @@ var init_structured_output = __esm({
 });
 
 // lib/python/python-manager.ts
-import { exec, execSync } from "child_process";
+import { spawnSync, execFile } from "child_process";
 import path12 from "path";
 import fs14 from "fs";
 import { promisify } from "util";
-var execPromise, PythonManager;
+var execFilePromise, PythonManager;
 var init_python_manager = __esm({
   "lib/python/python-manager.ts"() {
     "use strict";
-    execPromise = promisify(exec);
+    execFilePromise = promisify(execFile);
     PythonManager = class _PythonManager {
       static pythonPath = "python3";
       static virtualEnvPath = null;
@@ -2360,8 +2445,8 @@ var init_python_manager = __esm({
        */
       static isPythonAvailable() {
         try {
-          execSync(`${this.getPythonPath()} --version`, { stdio: "ignore" });
-          return true;
+          const result = spawnSync(this.getPythonPath(), ["--version"], { stdio: "ignore" });
+          return !result.error && result.status === 0;
         } catch (error) {
           return false;
         }
@@ -2370,9 +2455,16 @@ var init_python_manager = __esm({
        * Check if a specific Python package is installed
        */
       static isPackageInstalled(packageName) {
+        if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(packageName)) {
+          return false;
+        }
         try {
-          execSync(`${this.getPythonPath()} -c "import ${packageName}"`, { stdio: "ignore" });
-          return true;
+          const result = spawnSync(
+            this.getPythonPath(),
+            ["-c", `import ${packageName}`],
+            { stdio: "ignore" }
+          );
+          return !result.error && result.status === 0;
         } catch (error) {
           return false;
         }
@@ -2394,6 +2486,9 @@ var init_python_manager = __esm({
       }
       /**
        * Run a Python script with optional arguments
+       *
+       * `args` must be individual argv entries (no shell quoting) — they are
+       * passed directly to the process, never through a shell.
        */
       static run(options) {
         const { scriptName, args = [], timeout = 6e4, workingDir = process.cwd() } = options;
@@ -2406,19 +2501,25 @@ var init_python_manager = __esm({
             error: new Error(`Script not found: ${scriptPath}`)
           };
         }
-        const pythonPath = this.getPythonPath();
-        const command = `${pythonPath} "${scriptPath}" ${args.join(" ")}`;
         try {
-          const result = execSync(command, {
+          const result = spawnSync(this.getPythonPath(), [scriptPath, ...args], {
             encoding: "utf8",
             cwd: workingDir,
             timeout,
             stdio: ["pipe", "pipe", "pipe"]
           });
+          if (result.error) {
+            return {
+              stdout: result.stdout || "",
+              stderr: result.stderr || result.error.message,
+              code: result.status || 1,
+              error: result.error
+            };
+          }
           return {
-            stdout: result,
-            stderr: "",
-            code: 0
+            stdout: result.stdout || "",
+            stderr: result.stderr || "",
+            code: result.status ?? 1
           };
         } catch (error) {
           return {
@@ -2431,24 +2532,26 @@ var init_python_manager = __esm({
       }
       /**
        * Run a Python script asynchronously
+       *
+       * `args` must be individual argv entries (no shell quoting) — they are
+       * passed directly to the process, never through a shell.
        */
       static async runAsync(options) {
         const { scriptName, args = [], timeout = 6e4, workingDir = process.cwd() } = options;
         const scriptPath = this.resolveScriptPath(scriptName, workingDir);
         if (!scriptPath || !fs14.existsSync(scriptPath)) {
-          return Promise.resolve({
+          return {
             stdout: "",
             stderr: `Script not found: ${scriptPath}`,
             code: 1,
             error: new Error(`Script not found: ${scriptPath}`)
-          });
+          };
         }
-        const pythonPath = this.getPythonPath();
-        const command = `${pythonPath} "${scriptPath}" ${args.join(" ")}`;
         try {
-          const result = await execPromise(command, {
+          const result = await execFilePromise(this.getPythonPath(), [scriptPath, ...args], {
             cwd: workingDir,
-            timeout
+            timeout,
+            maxBuffer: 10 * 1024 * 1024
           });
           return {
             stdout: result.stdout,
@@ -2459,7 +2562,7 @@ var init_python_manager = __esm({
           return {
             stdout: error.stdout || "",
             stderr: error.stderr || error.message,
-            code: error.code || 1,
+            code: typeof error.code === "number" ? error.code : 1,
             error
           };
         }
@@ -2467,14 +2570,24 @@ var init_python_manager = __esm({
       /**
        * Run pip commands
        */
-      static runPip(command) {
-        const pipCommand = `${this.getPythonPath()} -m pip ${command}`;
+      static runPip(pipArgs) {
         try {
-          const result = execSync(pipCommand, { encoding: "utf8" });
+          const result = spawnSync(this.getPythonPath(), ["-m", "pip", ...pipArgs], {
+            encoding: "utf8",
+            stdio: ["pipe", "pipe", "pipe"]
+          });
+          if (result.error) {
+            return {
+              stdout: result.stdout || "",
+              stderr: result.stderr || result.error.message,
+              code: result.status || 1,
+              error: result.error
+            };
+          }
           return {
-            stdout: result,
-            stderr: "",
-            code: 0
+            stdout: result.stdout || "",
+            stderr: result.stderr || "",
+            code: result.status ?? 1
           };
         } catch (error) {
           return {
@@ -2497,7 +2610,7 @@ var init_python_manager = __esm({
             error: new Error(`Requirements file not found: ${requirementsPath}`)
           };
         }
-        return this.runPip(`install -r "${requirementsPath}"`);
+        return this.runPip(["install", "-r", requirementsPath]);
       }
       /**
        * Check if all required dependencies are installed
@@ -2529,7 +2642,7 @@ var backlinks_exports = {};
 __export(backlinks_exports, {
   BacklinkAnalyzer: () => BacklinkAnalyzer
 });
-import { execSync as execSync2 } from "child_process";
+import { spawnSync as spawnSync2 } from "child_process";
 import path13 from "path";
 var BacklinkAnalyzer;
 var init_backlinks = __esm({
@@ -2557,8 +2670,10 @@ var init_backlinks = __esm({
             const result = PythonManager.run({
               scriptName: "bing_webmaster",
               args: [
-                `--url "${url}"`,
-                `--limit ${limit}`,
+                "--url",
+                url,
+                "--limit",
+                String(limit),
                 "--json"
               ],
               timeout: 6e4
@@ -2573,7 +2688,8 @@ var init_backlinks = __esm({
               const result = PythonManager.run({
                 scriptName: "moz_api",
                 args: [
-                  `--url "${url}"`,
+                  "--url",
+                  url,
                   "--json"
                 ],
                 timeout: 6e4
@@ -2591,7 +2707,8 @@ var init_backlinks = __esm({
               const ccResult = PythonManager.run({
                 scriptName: "commoncrawl_graph",
                 args: [
-                  `--url "${url}"`,
+                  "--url",
+                  url,
                   "--json"
                 ],
                 timeout: 12e4
@@ -2637,15 +2754,34 @@ var init_backlinks = __esm({
       /**
        * Verifies backlinks still exist
        */
-      static async verify(backlinks) {
+      /**
+       * Verifies backlinks still exist.
+       * `target` is the page that should contain the links; `sources` are the
+       * linking page URLs to check.
+       */
+      static async verify(target, sources) {
         const scriptPath = path13.join(process.cwd(), "python", "verify_backlinks.py");
-        const cmd = `python3 ${scriptPath} --urls "${JSON.stringify(backlinks)}" --json`;
+        const linksJson = JSON.stringify(sources.map((url) => ({ source_url: url })));
         try {
-          const output = execSync2(cmd, { encoding: "utf8" });
-          return JSON.parse(output);
+          const result = spawnSync2(PythonManager.getPythonPath(), [
+            scriptPath,
+            "--target",
+            target,
+            "--links",
+            "-",
+            "--json"
+          ], {
+            encoding: "utf8",
+            timeout: 12e4,
+            input: linksJson
+          });
+          if (result.error || result.status !== 0) {
+            throw new Error(result.stderr || result.error?.message || "verify_backlinks failed");
+          }
+          return JSON.parse(result.stdout);
         } catch (error) {
           console.error("Backlink verification failed:", error.message);
-          return backlinks.map((url) => ({
+          return sources.map((url) => ({
             url,
             exists: false,
             status: 500
@@ -2656,6 +2792,7 @@ var init_backlinks = __esm({
        * Mocks backlink analysis result
        */
       static mockResult(url) {
+        console.warn(`[seoflow] WARNING: backlink analysis unavailable for ${url} \u2014 returning MOCK data (not a real link profile).`);
         return {
           totalBacklinks: 42,
           uniqueDomains: 18,
@@ -2674,7 +2811,8 @@ var init_backlinks = __esm({
             source: "bing"
           })),
           issues: ["Low authority links detected", "Some anchor text is over-optimized"],
-          opportunities: ["Build more links from relevant domains", "Diversify anchor text"]
+          opportunities: ["Build more links from relevant domains", "Diversify anchor text"],
+          isMock: true
         };
       }
     };
@@ -3044,11 +3182,34 @@ __export(url_auditor_exports, {
   auditUrl: () => auditUrl,
   isUrl: () => isUrl
 });
-import { execSync as execSync3 } from "node:child_process";
+import { spawnSync as spawnSync3 } from "node:child_process";
 import path17 from "node:path";
 import fs18 from "node:fs";
+import { fileURLToPath } from "node:url";
+function resolvePythonScript(scriptName) {
+  const here = path17.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    path17.join(process.cwd(), "python", scriptName),
+    path17.resolve(here, "..", "python", scriptName),
+    path17.resolve(here, "..", "..", "python", scriptName)
+  ];
+  return candidates.find((c) => fs18.existsSync(c)) || candidates[0];
+}
 function isUrl(s) {
   return /^https?:\/\//i.test(s);
+}
+function runPy(scriptPath, args, timeoutMs) {
+  try {
+    const result = spawnSync3("python3", [scriptPath, ...args], {
+      timeout: timeoutMs,
+      encoding: "utf-8",
+      maxBuffer: 10 * 1024 * 1024
+    });
+    if (result.error || result.status !== null && result.status !== 0) return null;
+    return result.stdout || null;
+  } catch {
+    return null;
+  }
 }
 function parseHtmlSignals(html) {
   const title = (html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || "").trim();
@@ -3126,15 +3287,11 @@ async function nodeFetchSignals(url) {
   }
 }
 async function fetchPageSignals(url) {
-  const scriptsDir = path17.join(process.cwd(), "python");
-  const fetchPath = path17.join(scriptsDir, "fetch_page.py");
+  const fetchPath = resolvePythonScript("fetch_page.py");
   if (fs18.existsSync(fetchPath)) {
     try {
-      const raw = execSync3(`python3 "${fetchPath}" "${url}" 2>/dev/null`, {
-        timeout: 2e4,
-        encoding: "utf-8",
-        maxBuffer: 10 * 1024 * 1024
-      });
+      const raw = runPy(fetchPath, [url], 2e4);
+      if (!raw) throw new Error("fetch_page.py returned no output");
       const parsed = parseHtmlSignals(raw);
       return {
         url,
@@ -3157,22 +3314,16 @@ async function fetchPageSignals(url) {
       console.log(`     \u26A0\uFE0F  fetch_page.py failed: ${e instanceof Error ? e.message.slice(0, 100) : "unknown"}`);
     }
   }
-  const renderPath = path17.join(scriptsDir, "render_page.py");
+  const renderPath = resolvePythonScript("render_page.py");
   if (fs18.existsSync(renderPath)) {
     try {
-      const raw = execSync3(`python3 "${renderPath}" "${url}" --json 2>/dev/null`, {
-        timeout: 25e3,
-        encoding: "utf-8",
-        maxBuffer: 10 * 1024 * 1024
-      });
+      const raw = runPy(renderPath, [url, "--json"], 25e3);
+      if (!raw) throw new Error("render_page.py returned no output");
       const data = JSON.parse(raw);
       const html = data.content || "";
       try {
-        const fetchRaw = execSync3(`python3 "${fetchPath}" "${url}" 2>/dev/null`, {
-          timeout: 15e3,
-          encoding: "utf-8",
-          maxBuffer: 10 * 1024 * 1024
-        });
+        const fetchRaw = runPy(fetchPath, [url], 15e3);
+        if (!fetchRaw) throw new Error("fetch_page.py returned no output");
         const parsed = parseHtmlSignals(fetchRaw);
         return {
           url: data.url || url,
@@ -3221,7 +3372,12 @@ async function fetchPageSignals(url) {
 }
 function basicFetchSignals(url) {
   try {
-    const raw = execSync3(`curl -sI -L "${url}" 2>/dev/null | head -20`, { timeout: 1e4, encoding: "utf-8" });
+    const result = spawnSync3("curl", ["-sI", "-L", url], {
+      timeout: 1e4,
+      encoding: "utf-8",
+      maxBuffer: 1024 * 1024
+    });
+    const raw = (result.stdout || "").split("\n").slice(0, 20).join("\n");
     const statusMatch = raw.match(/HTTP\/[\d.]+ (\d+)/);
     const status = statusMatch ? parseInt(statusMatch[1], 10) : 0;
     return { url, status, contentLength: 0, title: "", description: "", canonical: "", h1: [], h2: [], robots: "", jsonLd: [], hasSchema: false, metaRobots: "", ogTags: {}, links: { internal: 0, external: 0 }, loadTime: 0 };
@@ -3231,28 +3387,40 @@ function basicFetchSignals(url) {
 }
 function runPSI(url) {
   try {
-    const scriptPath = path17.join(process.cwd(), "python", "pagespeed_check.py");
-    if (fs18.existsSync(scriptPath)) {
-      const raw = execSync3(`python3 "${scriptPath}" "${url}" --json 2>/dev/null`, { timeout: 6e4, encoding: "utf-8" });
-      const data = JSON.parse(raw);
-      return {
-        score: data.score ?? 50,
-        lcp: data.lcp ?? 0,
-        inp: data.inp ?? 0,
-        cls: data.cls ?? 0,
-        fcp: data.fcp ?? 0,
-        tbt: data.tbt ?? 0
-      };
-    }
+    const scriptPath = resolvePythonScript("pagespeed_check.py");
+    if (!fs18.existsSync(scriptPath)) return null;
+    const apiKey = process.env.PAGESPEED_API_KEY || process.env.GOOGLE_API_KEY;
+    const args = [url, "--psi-only", "--strategy", "mobile"];
+    if (apiKey) args.push("--api-key", apiKey);
+    const raw = runPy(scriptPath, [...args, "--json"], 12e4);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    const psi = data?.psi?.mobile;
+    if (!psi) return null;
+    const lab = psi.lab_metrics || {};
+    const msToS = (v) => typeof v === "number" ? Math.round(v / 1e3 * 10) / 10 : 0;
+    const perf = psi.lighthouse_scores?.performance;
+    return {
+      score: typeof perf === "number" ? Math.round(perf) : 0,
+      lcp: msToS(lab["largest-contentful-paint"]?.value),
+      inp: Math.round(lab["interaction-to-next-paint"]?.value ?? 0),
+      cls: lab["cumulative-layout-shift"]?.value ?? 0,
+      fcp: msToS(lab["first-contentful-paint"]?.value),
+      tbt: Math.round(lab["total-blocking-time"]?.value ?? 0)
+    };
   } catch {
   }
   return null;
 }
 function checkGscIndexation(url) {
   try {
-    const scriptPath = path17.join(process.cwd(), "python", "gsc_inspect.py");
+    const scriptPath = resolvePythonScript("gsc_inspect.py");
     if (!fs18.existsSync(scriptPath)) return null;
-    const raw = execSync3(`python3 "${scriptPath}" "${url}" 2>/dev/null`, { timeout: 3e4, encoding: "utf-8" });
+    const siteUrl = process.env.GSC_SITE_URL;
+    const args = [url];
+    if (siteUrl) args.push("--site-url", siteUrl);
+    const raw = runPy(scriptPath, args, 3e4);
+    if (!raw) return null;
     const lines = raw.split("\n");
     const indexed = lines.some((l) => l.toLowerCase().includes("indexed") || l.toLowerCase().includes("submitted"));
     const crawlMatch = raw.match(/last.?crawl.*?(\d{4}-\d{2}-\d{2})/i);
@@ -3263,9 +3431,10 @@ function checkGscIndexation(url) {
 }
 function autoGenerateSchema(url, signals) {
   try {
-    const scriptPath = path17.join(process.cwd(), "python", "schema_generate.py");
+    const scriptPath = resolvePythonScript("schema_generate.py");
     if (!fs18.existsSync(scriptPath)) return null;
-    const raw = execSync3(`python3 "${scriptPath}" "${url}" 2>/dev/null`, { timeout: 3e4, encoding: "utf-8" });
+    const raw = runPy(scriptPath, [url], 3e4);
+    if (!raw) return null;
     const jsonMatch = raw.match(/\{[\s\S]*"@type"[\s\S]*\}/);
     if (!jsonMatch) return null;
     const parsed = JSON.parse(jsonMatch[0]);
@@ -5304,7 +5473,7 @@ __export(extensions_exports, {
 });
 import fs21 from "fs";
 import path21 from "path";
-import { fileURLToPath } from "url";
+import { fileURLToPath as fileURLToPath2 } from "url";
 function resolveRootDir(rootDir) {
   const base = rootDir || process.cwd();
   return path21.resolve(base);
@@ -5316,8 +5485,8 @@ function getStateFilePath(rootDir) {
 function findExtensionBundleRoot(extensionId, rootDir) {
   const candidates = [
     path21.resolve(resolveRootDir(rootDir), "extensions", extensionId),
-    path21.resolve(path21.dirname(fileURLToPath(import.meta.url)), "..", "extensions", extensionId),
-    path21.resolve(path21.dirname(fileURLToPath(import.meta.url)), "..", "..", "extensions", extensionId)
+    path21.resolve(path21.dirname(fileURLToPath2(import.meta.url)), "..", "extensions", extensionId),
+    path21.resolve(path21.dirname(fileURLToPath2(import.meta.url)), "..", "..", "extensions", extensionId)
   ];
   return candidates.find((candidate) => fs21.existsSync(candidate)) || null;
 }
@@ -6944,7 +7113,7 @@ var init_schema = __esm({
 });
 
 // lib/technical/psi.ts
-import { execSync as execSync4 } from "child_process";
+import { spawnSync as spawnSync4 } from "child_process";
 import path24 from "path";
 function getPSIInstance(apiKey) {
   if (!psiInstance) {
@@ -6955,9 +7124,11 @@ function getPSIInstance(apiKey) {
 function validateUrl(url) {
   try {
     const scriptPath = path24.join(process.cwd(), "python", "url_safety.py");
-    const cmd = `python3 ${scriptPath} --url "${url}"`;
-    execSync4(cmd, { encoding: "utf8", stdio: "ignore" });
-    return true;
+    const result = spawnSync4(PythonManager.getPythonPath(), [scriptPath, "--url", url], {
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    return !result.error && result.status === 0;
   } catch {
     return false;
   }
@@ -6981,11 +7152,13 @@ var init_psi = __esm({
             return this.mockResult(url, strategy);
           }
           const args = [
-            `--url "${url}"`,
-            `--strategy ${strategy}`
+            "--url",
+            url,
+            "--strategy",
+            strategy
           ];
           if (this.apiKey) {
-            args.push(`--api-key "${this.apiKey}"`);
+            args.push("--api-key", this.apiKey);
           }
           args.push("--json");
           const result = PythonManager.run({
@@ -7013,11 +7186,12 @@ var init_psi = __esm({
             return this.mockCrUXResult(url);
           }
           const args = [
-            `--url "${url}"`,
+            "--url",
+            url,
             "--crux-only"
           ];
           if (this.apiKey) {
-            args.push(`--api-key "${this.apiKey}"`);
+            args.push("--api-key", this.apiKey);
           }
           args.push("--json");
           const result = PythonManager.run({
@@ -7045,11 +7219,13 @@ var init_psi = __esm({
             return this.mockLCPBreakdown();
           }
           const args = [
-            `--url "${url}"`,
-            `--strategy ${strategy}`
+            "--url",
+            url,
+            "--strategy",
+            strategy
           ];
           if (this.apiKey) {
-            args.push(`--api-key "${this.apiKey}"`);
+            args.push("--api-key", this.apiKey);
           }
           args.push("--json");
           const result = PythonManager.run({
@@ -7072,6 +7248,7 @@ var init_psi = __esm({
        * Mocks PSI result for development/testing
        */
       mockResult(url, strategy) {
+        console.warn(`[seoflow] WARNING: PSI measurement unavailable for ${url} \u2014 returning MOCK data (not a real audit).`);
         return {
           lcp: 1.8,
           inp: 150,
@@ -7081,32 +7258,37 @@ var init_psi = __esm({
           score: 92,
           url,
           device: strategy,
-          strategy
+          strategy,
+          isMock: true
         };
       }
       /**
        * Mocks CrUX result
        */
       mockCrUXResult(url) {
+        console.warn(`[seoflow] WARNING: CrUX data unavailable for ${url} \u2014 returning MOCK data (not real field data).`);
         return {
           lcp: 2.1,
           inp: 180,
           cls: 0.08,
           origin: new URL(url).origin,
           effectiveConnectionType: "4G",
-          formFactor: "PHONE"
+          formFactor: "PHONE",
+          isMock: true
         };
       }
       /**
        * Mocks LCP breakdown
        */
       mockLCPBreakdown() {
+        console.warn("[seoflow] WARNING: LCP breakdown unavailable \u2014 returning MOCK data (not a real measurement).");
         return {
           ttfb: 300,
           loadDelay: 400,
           loadDuration: 800,
           renderDelay: 300,
-          total: 1800
+          total: 1800,
+          isMock: true
         };
       }
     };
@@ -7469,7 +7651,7 @@ async function stepTechnicalAudit(input) {
     changes.push("\u26A0\uFE0F  URL validation failed");
     return { content: input.content, frontmatter: input.frontmatter, changes };
   }
-  const psi = getPSIInstance(process.env.GOOGLE_API_KEY);
+  const psi = getPSIInstance(process.env.PAGESPEED_API_KEY || process.env.GOOGLE_API_KEY);
   try {
     console.log(`     \u{1F4CA} Running technical SEO audit for ${url}`);
     const [psiResult, cruxResult, lcpBreakdown, brokenLinks, redirectChains, canonicalTag, hreflangTags, sitemapResult, robotsResult, mobileResult] = await Promise.all([
@@ -7669,13 +7851,14 @@ var init_content_quality = __esm({
             return this.mockQualityResult(text);
           }
           const args = [
-            `--text "${this.escapeQuotes(text)}"`
+            "--text",
+            text
           ];
           if (title) {
-            args.push(`--title "${this.escapeQuotes(title)}"`);
+            args.push("--title", title);
           }
           if (category) {
-            args.push(`--category "${this.escapeQuotes(category)}"`);
+            args.push("--category", category);
           }
           args.push("--json");
           const result = PythonManager.run({
@@ -7710,7 +7893,8 @@ var init_content_quality = __esm({
           const result = PythonManager.run({
             scriptName: "content_humanize",
             args: [
-              `--text "${this.escapeQuotes(text)}"`,
+              "--text",
+              text,
               "--json"
             ],
             timeout: 6e4
@@ -7750,10 +7934,11 @@ var init_content_quality = __esm({
             };
           }
           const args = [
-            `--text "${this.escapeQuotes(text)}"`
+            "--text",
+            text
           ];
           if (title) {
-            args.push(`--title "${this.escapeQuotes(title)}"`);
+            args.push("--title", title);
           }
           args.push("--json");
           const result = PythonManager.run({
@@ -7783,15 +7968,10 @@ var init_content_quality = __esm({
         }
       }
       /**
-       * Escapes quotes for shell command
-       */
-      static escapeQuotes(text) {
-        return text.replace(/"/g, '\\"').replace(/\n/g, "\\n");
-      }
-      /**
        * Mocks content quality result
        */
       static mockQualityResult(text) {
+        console.warn("[seoflow] WARNING: content quality analyzer unavailable \u2014 returning MOCK scores (not a real analysis).");
         const wordCount = text.split(/\s+/).filter(Boolean).length;
         const hasPersonalExperience = /I\s+(have|had|went|visited|experienced)/i.test(text);
         const hasSpecificDetails = /\d+(\.\d+)?\s*(€|\$|£|km|miles|hours|days)/i.test(text);
@@ -7810,7 +7990,8 @@ var init_content_quality = __esm({
           improvements: wordCount > 1e3 ? ["Consider breaking into shorter sections"] : [],
           aiPatternCount: 0,
           fillerWords: [],
-          claimsNeedingCitation: []
+          claimsNeedingCitation: [],
+          isMock: true
         };
       }
     };
@@ -8103,10 +8284,14 @@ var init_pdf_generator = __esm({
           const result = PythonManager.run({
             scriptName: "google_report",
             args: [
-              `--type ${data.type}`,
-              `--data "${tempDataPath}"`,
-              `--domain ${data.domain}`,
-              `--output "${outputPath}"`
+              "--type",
+              data.type,
+              "--data",
+              tempDataPath,
+              "--domain",
+              data.domain,
+              "--output",
+              outputPath
             ],
             timeout: 12e4
             // 2 minutes
@@ -8162,7 +8347,7 @@ var init_pdf_generator = __esm({
 });
 
 // lib/reports/reports.ts
-import { execSync as execSync5 } from "child_process";
+import { spawnSync as spawnSync5 } from "child_process";
 import path26 from "path";
 import fs25 from "fs";
 var ReportGenerator;
@@ -8170,6 +8355,7 @@ var init_reports = __esm({
   "lib/reports/reports.ts"() {
     "use strict";
     init_pdf_generator();
+    init_python_manager();
     ReportGenerator = class {
       /**
        * Generates an SEO report
@@ -8192,9 +8378,11 @@ var init_reports = __esm({
           if (format === "pdf") {
             return PDFGenerator.generateSimpleReport(data, new URL(data.url).hostname, outputPath);
           } else {
-            const scriptPath = path26.join(process.cwd(), "python", "google_report.py");
-            const cmd = this.buildCommand(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath);
-            execSync5(cmd, { encoding: "utf8", stdio: "ignore" });
+            const args = this.buildArgs(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath);
+            const result = spawnSync5(PythonManager.getPythonPath(), args, { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
+            if (result.error || result.status !== 0 && result.status !== null) {
+              throw new Error(result.stderr || result.error?.message || `google_report exited with status ${result.status}`);
+            }
             if (fs25.existsSync(outputPath)) {
               console.log(`\u2705 Report generated: ${outputPath}`);
               return outputPath;
@@ -8211,43 +8399,43 @@ var init_reports = __esm({
         }
       }
       /**
-       * Builds the Python command
+       * Builds the argv array for the Python report generator.
+       * Values are passed as individual argv entries — never through a shell.
        */
-      static buildCommand(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath) {
+      static buildArgs(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath) {
         const args = [
-          "python3",
           path26.join(process.cwd(), "python", "google_report.py"),
           "--url",
-          `"${data.url}"`,
+          data.url,
           "--score",
           data.score.toString(),
           "--output",
-          `"${outputPath}"`,
+          outputPath,
           "--format",
           format
         ];
         if (includeTechnical && data.technical) {
-          args.push("--technical", `"${JSON.stringify(data.technical)}"`);
+          args.push("--technical", JSON.stringify(data.technical));
         }
         if (includeContent && data.content) {
-          args.push("--content", `"${JSON.stringify(data.content)}"`);
+          args.push("--content", JSON.stringify(data.content));
         }
         if (includeSchema && data.schema) {
-          args.push("--schema", `"${JSON.stringify(data.schema)}"`);
+          args.push("--schema", JSON.stringify(data.schema));
         }
         if (includeBacklinks && data.backlinks) {
-          args.push("--backlinks", `"${JSON.stringify(data.backlinks)}"`);
+          args.push("--backlinks", JSON.stringify(data.backlinks));
         }
         if (data.issues.length > 0) {
-          args.push("--issues", `"${JSON.stringify(data.issues)}"`);
+          args.push("--issues", JSON.stringify(data.issues));
         }
         if (data.warnings.length > 0) {
-          args.push("--warnings", `"${JSON.stringify(data.warnings)}"`);
+          args.push("--warnings", JSON.stringify(data.warnings));
         }
         if (data.quickWins.length > 0) {
-          args.push("--quick-wins", `"${JSON.stringify(data.quickWins)}"`);
+          args.push("--quick-wins", JSON.stringify(data.quickWins));
         }
-        return args.join(" ");
+        return args;
       }
       /**
        * Generates a fallback JSON report if PDF fails
@@ -8380,7 +8568,8 @@ var init_drift = __esm({
           const result = PythonManager.run({
             scriptName: "drift_baseline",
             args: [
-              `--url "${url}"`,
+              "--url",
+              url,
               "--json"
             ],
             timeout: 6e4
@@ -8420,8 +8609,10 @@ var init_drift = __esm({
           const result = PythonManager.run({
             scriptName: "drift_compare",
             args: [
-              `--baseline ${baselineId}`,
-              `--url "${url}"`,
+              "--baseline",
+              baselineId,
+              "--url",
+              url,
               "--json"
             ],
             timeout: 6e4
@@ -8448,7 +8639,8 @@ var init_drift = __esm({
           const result = PythonManager.run({
             scriptName: "drift_history",
             args: [
-              `--url "${url}"`,
+              "--url",
+              url,
               "--json"
             ],
             timeout: 6e4
@@ -8468,6 +8660,7 @@ var init_drift = __esm({
        * Mocks a baseline
        */
       static mockBaseline(url) {
+        console.warn(`[seoflow] WARNING: drift baseline capture unavailable for ${url} \u2014 returning MOCK data (not a real measurement).`);
         return {
           id: Date.now().toString(),
           url,
@@ -8479,13 +8672,15 @@ var init_drift = __esm({
             keywordDensity: { "organic": 1.2, "blog": 0.8 },
             links: 15,
             images: 5
-          }
+          },
+          isMock: true
         };
       }
       /**
        * Mocks a comparison
        */
       static mockComparison(baselineId, url) {
+        console.warn(`[seoflow] WARNING: drift comparison unavailable (baseline ${baselineId}) \u2014 returning MOCK data.`);
         const baseline = this.mockBaseline(url);
         const current = {
           ...baseline,
@@ -8514,7 +8709,8 @@ var init_drift = __esm({
             imageChanges: 1
           },
           issues: [],
-          warnings: ["Readability score decreased slightly"]
+          warnings: ["Readability score decreased slightly"],
+          isMock: true
         };
       }
     };
@@ -10179,25 +10375,27 @@ function validateEnv() {
   const providers2 = [
     { key: "GEMINI_API_KEY", label: "Gemini", required: false },
     { key: "OPENROUTER_API_KEY", label: "OpenRouter", required: false },
+    { key: "OPENAI_API_KEY", label: "OpenAI-compatible", required: false },
     { key: "NEURONWRITER_API_KEY", label: "NeuronWriter", required: false },
     { key: "PEXELS_API_KEY", label: "Pexels", required: false }
   ];
+  const aiKeys = ["GEMINI_API_KEY", "OPENROUTER_API_KEY", "OPENAI_API_KEY"];
   let hasAi = false;
   for (const p of providers2) {
     const val = process.env[p.key];
     if (val) {
       checks.push({ field: p.key, status: "ok", message: `${p.label}: configured` });
-      if (p.key === "GEMINI_API_KEY" || p.key === "OPENROUTER_API_KEY") hasAi = true;
+      if (aiKeys.includes(p.key)) hasAi = true;
     } else {
-      checks.push({ field: p.key, status: "warn", message: `${p.label}: not set (${p.label === "GEMINI_API_KEY" || p.label === "OPENROUTER_API_KEY" ? "optional but recommended" : "optional"})` });
+      checks.push({ field: p.key, status: "warn", message: `${p.label}: not set (${aiKeys.includes(p.key) ? "optional but recommended" : "optional"})` });
     }
   }
   if (!hasAi) {
-    checks.push({ field: "AI_PROVIDER", status: "error", message: "No AI provider configured. Set GEMINI_API_KEY or OPENROUTER_API_KEY." });
+    checks.push({ field: "AI_PROVIDER", status: "error", message: "No AI provider configured. Set GEMINI_API_KEY, OPENROUTER_API_KEY, or OPENAI_API_KEY." });
   }
   const provider = process.env.AI_PROVIDER;
-  if (provider && !["gemini", "openrouter", "claude"].includes(provider.toLowerCase())) {
-    checks.push({ field: "AI_PROVIDER", status: "warn", message: `Invalid value "${provider}". Use "gemini", "openrouter", or "claude".` });
+  if (provider && !["gemini", "openrouter", "claude", "openai"].includes(provider.toLowerCase())) {
+    checks.push({ field: "AI_PROVIDER", status: "warn", message: `Invalid value "${provider}". Use "gemini", "openrouter", "claude", or "openai".` });
   }
   const valid = checks.every((c) => c.status !== "error");
   return { valid, checks };
@@ -10692,10 +10890,10 @@ async function runPipeline2() {
       console.log(`\u{1F4DD} Research logged: ${topic}`);
       console.log(`   \u2192 ${note}`);
       try {
-        const { execSync: execSync6 } = await import("node:child_process");
+        const { execSync } = await import("node:child_process");
         const syncScript = path28.join(process.cwd(), "scripts", "sync-seo-brain-to-obsidian.sh");
         if (fs27.existsSync(syncScript)) {
-          execSync6(`bash "${syncScript}"`, { stdio: "inherit", cwd: process.cwd() });
+          execSync(`bash "${syncScript}"`, { stdio: "inherit", cwd: process.cwd() });
         }
       } catch {
       }

@@ -5,7 +5,7 @@
  */
 
 import { PythonManager } from '../python/python-manager';
-import { execSync } from 'child_process';
+import { spawnSync } from 'child_process';
 import path from 'path';
 
 export interface Backlink {
@@ -29,6 +29,7 @@ export interface BacklinkAnalysisResult {
   backlinks: Backlink[];
   issues: string[];
   opportunities: string[];
+  isMock?: boolean; // true when real measurement was unavailable
 }
 
 export class BacklinkAnalyzer {
@@ -59,8 +60,8 @@ export class BacklinkAnalyzer {
         const result = PythonManager.run({
           scriptName: 'bing_webmaster',
           args: [
-            `--url "${url}"`,
-            `--limit ${limit}`,
+            '--url', url,
+            '--limit', String(limit),
             '--json',
           ],
           timeout: 60000,
@@ -78,7 +79,7 @@ export class BacklinkAnalyzer {
           const result = PythonManager.run({
             scriptName: 'moz_api',
             args: [
-              `--url "${url}"`,
+              '--url', url,
               '--json',
             ],
             timeout: 60000,
@@ -99,7 +100,7 @@ export class BacklinkAnalyzer {
           const ccResult = PythonManager.run({
             scriptName: 'commoncrawl_graph',
             args: [
-              `--url "${url}"`,
+              '--url', url,
               '--json',
             ],
             timeout: 120000,
@@ -153,16 +154,33 @@ export class BacklinkAnalyzer {
   /**
    * Verifies backlinks still exist
    */
-  static async verify(backlinks: string[]): Promise<Array<{ url: string; exists: boolean; status?: number }>> {
+  /**
+   * Verifies backlinks still exist.
+   * `target` is the page that should contain the links; `sources` are the
+   * linking page URLs to check.
+   */
+  static async verify(target: string, sources: string[]): Promise<Array<{ url: string; exists: boolean; status?: number }>> {
     const scriptPath = path.join(process.cwd(), 'python', 'verify_backlinks.py');
-    const cmd = `python3 ${scriptPath} --urls "${JSON.stringify(backlinks)}" --json`;
+    const linksJson = JSON.stringify(sources.map(url => ({ source_url: url })));
 
     try {
-      const output = execSync(cmd, { encoding: 'utf8' });
-      return JSON.parse(output);
+      const result = spawnSync(PythonManager.getPythonPath(), [
+        scriptPath,
+        '--target', target,
+        '--links', '-',
+        '--json',
+      ], {
+        encoding: 'utf8',
+        timeout: 120000,
+        input: linksJson,
+      });
+      if (result.error || result.status !== 0) {
+        throw new Error(result.stderr || result.error?.message || 'verify_backlinks failed');
+      }
+      return JSON.parse(result.stdout);
     } catch (error: any) {
       console.error('Backlink verification failed:', error.message);
-      return backlinks.map(url => ({
+      return sources.map(url => ({
         url,
         exists: false,
         status: 500,
@@ -174,6 +192,7 @@ export class BacklinkAnalyzer {
    * Mocks backlink analysis result
    */
   private static mockResult(url: string): BacklinkAnalysisResult {
+    console.warn(`[seoflow] WARNING: backlink analysis unavailable for ${url} — returning MOCK data (not a real link profile).`);
     return {
       totalBacklinks: 42,
       uniqueDomains: 18,
@@ -193,6 +212,7 @@ export class BacklinkAnalyzer {
       })),
       issues: ['Low authority links detected', 'Some anchor text is over-optimized'],
       opportunities: ['Build more links from relevant domains', 'Diversify anchor text'],
+      isMock: true,
     };
   }
 }
