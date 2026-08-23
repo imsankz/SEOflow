@@ -107,6 +107,7 @@ def load_config() -> dict:
         "ga4_property_id": None,
     }
 
+    file_config = {}
     # Load from config file
     if os.path.exists(CONFIG_PATH):
         try:
@@ -116,12 +117,17 @@ def load_config() -> dict:
         except (json.JSONDecodeError, IOError) as e:
             print(f"Warning: Could not read config file: {e}", file=sys.stderr)
 
+    # PAGESPEED_API_KEY is the canonical name for the PSI/CrUX API key.
+    # `api_key` / `GOOGLE_API_KEY` remain supported as legacy aliases.
+    if not config.get("api_key"):
+        config["api_key"] = file_config.get("PAGESPEED_API_KEY")
+
     # Environment variable fallbacks
     if not config["service_account_path"]:
         config["service_account_path"] = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
 
     if not config["api_key"]:
-        config["api_key"] = os.environ.get("GOOGLE_API_KEY")
+        config["api_key"] = os.environ.get("PAGESPEED_API_KEY") or os.environ.get("GOOGLE_API_KEY")
 
     if not config["ga4_property_id"]:
         config["ga4_property_id"] = os.environ.get("GA4_PROPERTY_ID")
@@ -355,8 +361,31 @@ def get_oauth_credentials(scopes: list):
             except ImportError:
                 print("Error: google-auth required. Install with: pip install google-auth", file=sys.stderr)
 
+    # Application Default Credentials (ADC) — the user's own Google account
+    # (e.g. `gcloud auth application-default login`). Tried BEFORE the service
+    # account because it holds the broadest GSC property grants (incl. sites
+    # the seoflow SA was never added to, e.g. sc-domain:eriingermany.com).
+    try:
+        from google.auth import default as adc_default
+
+        adc_creds, _adc_project = adc_default(scopes=scopes)
+        if adc_creds is not None:
+            return adc_creds
+    except ImportError:
+        print(
+            "Error: google-auth library required for ADC. "
+            "Install with: pip install google-auth",
+            file=sys.stderr,
+        )
+    except Exception as e:
+        print(f"Warning: ADC lookup failed: {e}", file=sys.stderr)
+
     # Fall back to service account
-    return get_service_account_credentials(scopes)
+    sa_creds = get_service_account_credentials(scopes)
+    if sa_creds:
+        return sa_creds
+
+    return None
 
 
 def run_oauth_flow(creds_path: str):
@@ -582,8 +611,8 @@ def check_credentials(service: str) -> dict:
             result["available"] = True
         else:
             result["error"] = (
-                "No API key found. Set GOOGLE_API_KEY environment variable "
-                f"or add 'api_key' to {CONFIG_PATH}"
+                "No API key found. Set PAGESPEED_API_KEY (or GOOGLE_API_KEY) "
+                f"environment variable or add 'PAGESPEED_API_KEY' to {CONFIG_PATH}"
             )
 
     elif SERVICE_AUTH.get(service) == "oauth_or_sa":
@@ -746,6 +775,7 @@ Google SEO API Setup Instructions
 3. CREATE AN API KEY (for PSI, CrUX -- free, no service account needed)
    - APIs & Services > Credentials > Create Credentials > API key
    - Restrict to: PageSpeed Insights API, Chrome UX Report API
+   - Save the key as PAGESPEED_API_KEY (see step 6)
 
 4. CREATE A SERVICE ACCOUNT (for GSC, Indexing API, GA4)
    - IAM & Admin > Service Accounts > Create Service Account
@@ -764,15 +794,20 @@ Google SEO API Setup Instructions
    {
      "service_account_path": "/path/to/service_account.json",
      "api_key": "<GOOGLE_API_KEY>",
+     "PAGESPEED_API_KEY": "<GOOGLE_API_KEY>",
      "default_property": "sc-domain:example.com",
      "ga4_property_id": "properties/123456789"
    }
+
+   PAGESPEED_API_KEY is the canonical field for the PSI/CrUX key
+   ('api_key' is accepted as a legacy alias). Same key as step 3.
 
 7. VERIFY
    python scripts/google_auth.py --check
 
 ENVIRONMENT VARIABLE ALTERNATIVES:
-   GOOGLE_API_KEY              - API key
+   PAGESPEED_API_KEY          - PSI/CrUX API key (preferred name)
+   GOOGLE_API_KEY              - API key (legacy alias for PSI/CrUX)
    GOOGLE_APPLICATION_CREDENTIALS - Path to service account JSON
    GA4_PROPERTY_ID             - GA4 property ID (e.g., properties/123456789)
    GSC_PROPERTY                - Default Search Console property

@@ -383,11 +383,42 @@ seoflow/
 - `GEMINI_API_KEY` or `OPENROUTER_API_KEY` or `ANTHROPIC_API_KEY` (at least one for AI steps)
 - Optional: `SEMRUSH_API_KEY` (keyword research — direct API calls via `phrase_this` + `phrase_related`)
 - Optional: `AHREFS_API_KEY` (keyword research — direct API calls via v3 keywords-explorer)
+- Optional: `PAGESPEED_API_KEY` (PageSpeed Insights + CrUX — free Google Cloud key; restores real PSI/LCP/CLS/INP data in URL audits)
 - Optional: `NEURONWRITER_API_KEY`, `NEURONWRITER_PROJECT_ID`
 - Optional: `PEXELS_API_KEY` or `UNSPLASH_API_KEY`
 - Optional: Ubersuggest MCP (for keyword research)
 - Optional: `AHREFS_COUNTRY` / `SEMRUSH_DATABASE` / `SEOFLOW_COUNTRY` — override default region (`us`)
 Without any keys, SeoFlow still works — it skips AI/data steps gracefully and runs the URL auditor on raw signals.
+
+### PageSpeed Insights (PSI) & CrUX — `PAGESPEED_API_KEY`
+
+URL audits fetch lab performance (PSI) and field data (CrUX). Without a key the
+`seoflow audit <url>` report shows **PSI Score: N/A**; with it you get real
+performance/LCP/CLS/INP numbers.
+
+Setup (free, ~2 minutes):
+
+1. Google Cloud → [APIs & Services](https://console.cloud.google.com/apis) → **Library** → enable **PageSpeed Insights API** and **Chrome UX Report API**.
+2. **Credentials** → **Create credentials** → **API key**. Restrict the key to those two APIs.
+3. Configure it — either (a) environment variable:
+
+   ```bash
+   export PAGESPEED_API_KEY=AIza...
+   ```
+
+   or (b) the machine-global config file `~/.config/seoflow/google-api.json`:
+
+   ```json
+   {
+     "PAGESPEED_API_KEY": "AIza...",
+     "service_account_path": "/path/to/service_account.json",
+     "default_property": "sc-domain:example.com"
+   }
+   ```
+
+   `PAGESPEED_API_KEY` is the canonical name; `api_key` / `GOOGLE_API_KEY` are
+   accepted as legacy aliases for PSI/CrUX. The key is optional — without it the
+   audit still runs, just with performance data marked N/A.
 
 ---
 

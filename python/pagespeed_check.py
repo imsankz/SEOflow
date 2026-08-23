@@ -164,6 +164,7 @@ def run_pagespeed(
     lab_audit_ids = [
         "first-contentful-paint", "largest-contentful-paint",
         "total-blocking-time", "cumulative-layout-shift",
+        "interaction-to-next-paint",
         "speed-index", "interactive",
     ]
     for audit_id in lab_audit_ids:

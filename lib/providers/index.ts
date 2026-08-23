@@ -14,6 +14,7 @@ import { codexCliProvider } from './codex-cli';
 import { geminiCliProvider } from './gemini-cli';
 import { openrouterProvider } from './openrouter';
 import { geminiProvider } from './gemini';
+import { openaiProvider } from './openai-compat';
 import type { LLMProvider, ProviderAvailability, ProviderId, LLMChatInput, LLMChatResult } from './types';
 
 const ALL: LLMProvider[] = [
@@ -23,6 +24,7 @@ const ALL: LLMProvider[] = [
   anthropicProvider,
   openrouterProvider,
   geminiProvider,
+  openaiProvider,
 ];
 
 export const providers: Record<string, LLMProvider> = {};
@@ -37,6 +39,7 @@ const PREFERENCE_ORDER: ProviderId[] = [
   'anthropic',
   'openrouter',
   'gemini',
+  'openai',
 ];
 
 /** Survey every provider — status summary. */

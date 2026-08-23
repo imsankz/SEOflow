@@ -5,7 +5,7 @@
  * All providers share one interface — callers never know which backend resolved the request.
  */
 
-export type ProviderId = 'gemini' | 'openrouter' | 'anthropic' | 'claude-cli' | 'codex-cli' | 'gemini-cli';
+export type ProviderId = 'gemini' | 'openrouter' | 'anthropic' | 'claude-cli' | 'codex-cli' | 'gemini-cli' | 'openai';
 
 export type AuthMode = 'api-key' | 'subscription';
 

@@ -136,3 +136,12 @@ mcp__ubersuggest__keyword_ideas on "<your keyword>"
 ```
 
 Save results to `seoflow.config.json` → `keywordCachePath` for the pipeline to pick up.
+
+
+<claude-mem-context>
+# Memory Context
+
+# $CMEM seoflow 2026-08-22 4:21pm GMT+2
+
+No previous sessions found.
+</claude-mem-context>

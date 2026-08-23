@@ -94,29 +94,31 @@ export function validateEnv(): ValidationResult {
   const providers = [
     { key: 'GEMINI_API_KEY', label: 'Gemini', required: false },
     { key: 'OPENROUTER_API_KEY', label: 'OpenRouter', required: false },
+    { key: 'OPENAI_API_KEY', label: 'OpenAI-compatible', required: false },
     { key: 'NEURONWRITER_API_KEY', label: 'NeuronWriter', required: false },
     { key: 'PEXELS_API_KEY', label: 'Pexels', required: false },
   ];
 
+  const aiKeys = ['GEMINI_API_KEY', 'OPENROUTER_API_KEY', 'OPENAI_API_KEY'];
   let hasAi = false;
   for (const p of providers) {
     const val = process.env[p.key];
     if (val) {
       checks.push({ field: p.key, status: 'ok', message: `${p.label}: configured` });
-      if (p.key === 'GEMINI_API_KEY' || p.key === 'OPENROUTER_API_KEY') hasAi = true;
+      if (aiKeys.includes(p.key)) hasAi = true;
     } else {
-      checks.push({ field: p.key, status: 'warn', message: `${p.label}: not set (${p.label === 'GEMINI_API_KEY' || p.label === 'OPENROUTER_API_KEY' ? 'optional but recommended' : 'optional'})` });
+      checks.push({ field: p.key, status: 'warn', message: `${p.label}: not set (${aiKeys.includes(p.key) ? 'optional but recommended' : 'optional'})` });
     }
   }
 
   if (!hasAi) {
-    checks.push({ field: 'AI_PROVIDER', status: 'error', message: 'No AI provider configured. Set GEMINI_API_KEY or OPENROUTER_API_KEY.' });
+    checks.push({ field: 'AI_PROVIDER', status: 'error', message: 'No AI provider configured. Set GEMINI_API_KEY, OPENROUTER_API_KEY, or OPENAI_API_KEY.' });
   }
 
   // Check AI_PROVIDER value
   const provider = process.env.AI_PROVIDER;
-  if (provider && !['gemini', 'openrouter', 'claude'].includes(provider.toLowerCase())) {
-    checks.push({ field: 'AI_PROVIDER', status: 'warn', message: `Invalid value "${provider}". Use "gemini", "openrouter", or "claude".` });
+  if (provider && !['gemini', 'openrouter', 'claude', 'openai'].includes(provider.toLowerCase())) {
+    checks.push({ field: 'AI_PROVIDER', status: 'warn', message: `Invalid value "${provider}". Use "gemini", "openrouter", "claude", or "openai".` });
   }
 
   const valid = checks.every(c => c.status !== 'error');

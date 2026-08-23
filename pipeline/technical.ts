@@ -39,7 +39,7 @@ export async function stepTechnicalAudit(input: StepInput): Promise<StepOutput &
   }
 
   // Get PSI instance with API key from config
-  const psi = getPSIInstance(process.env.GOOGLE_API_KEY);
+  const psi = getPSIInstance(process.env.PAGESPEED_API_KEY || process.env.GOOGLE_API_KEY);
 
   try {
     console.log(`     📊 Running technical SEO audit for ${url}`);
