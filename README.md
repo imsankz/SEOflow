@@ -6,17 +6,38 @@
 [![NPM](https://img.shields.io/npm/v/seoflow?label=seoflow)](https://www.npmjs.com/package/seoflow)
 [![Node](https://img.shields.io/badge/node-%E2%89%A518-green.svg)](./package.json)
 
-**Portable, AI-powered SEO pipeline for any content site.** Drop it into any project, point it at your posts, and get automated frontmatter fixes, internal link injection, image enrichment, AI content audits, fact-checking, and a self-learning priority system that gets smarter every run.
+**Portable, AI-powered SEO pipeline for any content site.** Drop it into any project, point it at your posts, and get automated frontmatter fixes, internal link injection, image enrichment, AI content audits, fact-checking, GEO/AEO citations, and a self-learning priority system that gets smarter every run.
 
-> Built for content teams who want programmatic SEO without vendor lock-in. Works with Next.js, Hugo, Jekyll, Astro, 11ty, WordPress, or any MDX/Markdown setup.
+> Programmatic SEO without the SaaS lock-in. Works with Next.js, Hugo, Jekyll, Astro, 11ty, WordPress, or any MDX/Markdown stack. **Surfer / Clearscope / MarketMuse alternative** that lives in your repo.
+
+## Table of Contents
+
+- [Why SeoFlow?](#why-seoflow)
+- [Quick Start](#quick-start) — [Zero-setup URL audit](#try-it-with-zero-setup-url-audit) · [One-liner install](#full-pipeline-install-one-liner) · [npm install](#via-npm-recommended) · [Dev clone](#from-this-repo-development)
+- [Commands](#commands)
+- [What It Does (12 Pipeline Steps)](#what-it-does-12-pipeline-steps)
+- [SEO Agents (19 interactive agents)](#seo-agents-19-interactive-agents)
+- [GSC Data](#gsc-data-live--csv-fallback)
+- [Content Format Support](#content-format-support)
+- [Voice & Domain](#voice--domain--make-it-yours)
+- [AI Cost Guardrails](#ai-cost-guardrails)
+- [Non-Travel Sites](#non-travel-sites--zero-code-changes)
+- [Learning Data Portability](#learning-data-portability)
+- [Brain Vault](#brain-vault)
+- [Optional Extensions](#optional-extensions)
+- [Testing](#testing)
+- [Architecture](#architecture--what-belongs-where)
+- [Requirements](#requirements)
+- [Contributing](#contributing)
+- [License](#license)
 
 ---
 
 ## Why SeoFlow?
 
 - **Lives in your repo, not a SaaS dashboard.** No login, no per-seat pricing, no lock-in. Your content and your secrets stay on your machine.
-- **20+ AI agents across every SEO discipline.** Technical, content, schema, local, GEO, drift, backlinks, programmatic, image-gen — installed into whichever AI coding tool you already use.
-- **6 LLM providers with auto-fallback.** Gemini, OpenRouter, Anthropic, Claude CLI, Codex CLI, Gemini CLI. Set one key, it just works.
+- **19 AI agents across every SEO discipline.** Technical, content, schema, local, GEO, drift, backlinks, programmatic, image-gen, llms-txt — installed into whichever AI coding tool you already use.
+- **7 LLM providers with auto-fallback.** Gemini 2.5 Flash, OpenRouter, Anthropic, OpenAI-compatible endpoints (LM Studio, vLLM, Ollama), Claude CLI, Codex CLI, Gemini CLI. Set one key, it just works.
 - **Self-learning priority system.** Records what actually moved the needle on GSC and re-ranks the next run so you always work on the highest-leverage post.
 - **Graceful degradation.** No Ahrefs key? No NeuronWriter? No Pexels? SeoFlow silently skips that step and keeps going — it never crashes because a key is missing.
 - **One-command URL audit.** `npx seoflow audit https://yoursite.com` — works with zero API keys and zero configuration.
@@ -43,7 +64,7 @@ You'll get a health score, missing-meta signals, schema check, link structure, a
 bash <(curl -s https://raw.githubusercontent.com/imsankz/seoflow/main/install.sh)
 ```
 
-This auto-detects your AI coding tool (Kiro, Claude Code, Cursor, Copilot, Windsurf, OpenCode, Codex, Cline, Lingma, Zed) and copies the right agents to the right folder. Then:
+This auto-detects your AI coding tool (Kiro, Claude Code, Cursor, Copilot, Windsurf, OpenCode, Codex, Cline, Lingma, Zed, Amp) and copies the right agents to the right folder. Then:
 
 ```bash
 npx seoflow init     # interactive: creates seoflow.config.json
@@ -136,7 +157,7 @@ Each step runs through the orchestrator with dependency resolution, brain vault 
 
 ---
 
-## SEO Agents (20+ interactive agents)
+## SEO Agents (19 interactive agents)
 
 After install, agents are available in your AI tool. Example commands:
 
@@ -311,7 +332,7 @@ Available: ahrefs, bing-webmaster, dataforseo, firecrawl, profound, seranking, u
 ## Testing
 
 ```bash
-npm test                 # All tests (unit + integration) — 50 tests
+npm test                 # All tests (unit + integration)
 npm run test:unit        # Unit tests only (no file I/O)
 npm run test:integration # Integration tests only
 ```
