@@ -1,0 +1,26 @@
+# SECflow security scan — zero-cost secrets + dependency + custom-regex scanning.
+# See https://github.com/imsankz/SECflow for the CLI and config reference.
+name: Security scan (SECflow)
+on:
+  push:
+  pull_request:
+
+jobs:
+  secflow:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      # Fast native gitleaks gate (zero config, blocks push/PR on committed secrets)
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Full SECflow report (gitleaks + npm audit + regex, AI-ready brief)
+      - uses: imsankz/secflow@v0.2.0
+        with:
+          fail-on: critical,high
+          skip: trivy

@@ -1,5 +1,6 @@
 node_modules/
 .env.local
+.secflow/
 .worktrees/
 *.log
 seoflow.config.json
