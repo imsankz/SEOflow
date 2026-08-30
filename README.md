@@ -469,9 +469,9 @@ SeoFlow is part of a trio of zero-cost CLI tools — all MIT, all npm-published,
 |---|---|---|
 | **[SECflow](https://github.com/imsankz/SECflow)** | Security scanning for AI-driven repos (secrets, deps, custom rules) | github.com/imsankz/SECflow |
 | **SeoFlow** | AI-powered SEO pipeline (audit, internal links, content gen, GSC) | github.com/imsankz/seoflow |
-| **[LinkFlow](https://github.com/imsankz/linkflow)** | Backlink & directory submission automation (1,123 directories, Playwright, $0) | github.com/imsankz/linkflow |
+| **[BacklinkFlow](https://github.com/imsankz/backlinkflow)** | Backlink & directory submission automation (1,123 directories, Playwright, $0) | github.com/imsankz/backlinkflow |
 
-**Use them together:** SeoFlow audits and improves your content → LinkFlow submits your product to directories that boost DR → SECflow keeps your repos clean while you ship. All three work with the same OmniRoute / OpenAI-compatible AI endpoint.
+**Use them together:** SeoFlow audits and improves your content → BacklinkFlow submits your product to directories that boost DR → SECflow keeps your repos clean while you ship. All three work with the same OmniRoute / OpenAI-compatible AI endpoint.
 
 ## Star / Share
 
