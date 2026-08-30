@@ -461,10 +461,22 @@ Please read our [Code of Conduct](./CODE_OF_CONDUCT.md). Security issues: see [S
 
 ---
 
+## Related: the *flow* series
+
+SeoFlow is part of a trio of zero-cost CLI tools — all MIT, all npm-published, all built on the same idea (free engines + your own AI agent as the smart layer):
+
+| Tool | Job | Repo |
+|---|---|---|
+| **[SECflow](https://github.com/imsankz/SECflow)** | Security scanning for AI-driven repos (secrets, deps, custom rules) | github.com/imsankz/SECflow |
+| **SeoFlow** | AI-powered SEO pipeline (audit, internal links, content gen, GSC) | github.com/imsankz/seoflow |
+| **[LinkFlow](https://github.com/imsankz/linkflow)** | Backlink & directory submission automation (1,123 directories, Playwright, $0) | github.com/imsankz/linkflow |
+
+**Use them together:** SeoFlow audits and improves your content → LinkFlow submits your product to directories that boost DR → SECflow keeps your repos clean while you ship. All three work with the same OmniRoute / OpenAI-compatible AI endpoint.
+
 ## Star / Share
 
 If SeoFlow helps you ship better SEO content, ⭐ the repo and share it:
 
 > **SeoFlow** — the AI SEO pipeline that lives in your repo, not a SaaS dashboard. `npx seoflow init` → audit → learn → grow. Works with any stack. https://github.com/imsankz/seoflow
 
-Built by [@imsankz](https://github.com/imsankz).
+Built by [@imsankz](https://github.com/imsankz). SeoFlow is free forever — if it saves you a Surfer/Clearscope bill, [buy me a coffee](https://ko-fi.com/chasingwhereabouts) ☕.
