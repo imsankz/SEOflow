@@ -1,539 +1,85 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta
-    name="description"
-    content="SeoFlow — the AI-powered SEO pipeline that lives in your repo, not a SaaS dashboard. Audit, improve, and generate content with 19 specialist agents. Runs locally with your own AI keys. Zero lock-in."
-  />
-  <meta name="theme-color" content="#0f172a" />
-
-  <!-- Open Graph / Social -->
+  <meta name="description" content="SeoFlow — AI-powered SEO pipeline that lives in your repo. Audit, improve, and generate content with 19 specialist agents. Surfer/Clearscope alternative. Zero lock-in."/>
   <meta property="og:title" content="SeoFlow — AI SEO Pipeline That Lives in Your Repo"/>
-  <meta
-    property="og:description"
-    content="Portable AI-powered SEO pipeline for any content site. Runs locally, works with Next.js, Hugo, Jekyll, Astro, 11ty. Surfer/Clearscope alternative. Zero SaaS lock-in."
-  />
+  <meta property="og:description" content="Portable AI-powered SEO pipeline for any content site. Audit, internal links, content gen, GSC integration. Surfer/Clearscope alternative. Zero SaaS lock-in."/>
   <meta property="og:image" content="https://imsankz.github.io/seoflow/og-image.png"/>
   <meta property="og:url" content="https://imsankz.github.io/seoflow/"/>
   <meta property="og:type" content="website"/>
-
-  <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image"/>
-  <meta name="twitter:title" content="SeoFlow — AI SEO Pipeline That Lives in Your Repo"/>
-  <meta
-    name="twitter:description"
-    content="Audit, improve, and generate SEO content with 19 AI agents — all local, zero SaaS lock-in."
-  />
-
+  <meta name="twitter:title" content="SeoFlow — AI SEO Pipeline in Your Repo"/>
+  <meta name="twitter:description" content="Audit, improve, and generate SEO content with 19 AI agents. Surfer/Clearscope alternative. Zero lock-in."/>
   <title>SeoFlow — AI SEO Pipeline in Your Repo</title>
-
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌊%3C/text%3E%3C/svg%3E">
-
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-  <link
-    href="https://fonts.googleapis.com/css2Inter:wght@400;500;600;700;900&Inter:opsz,wght@10..1200,400;500;600;700;900&display=swap"
-    rel="stylesheet"
-  />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=optional"
-    rel="stylesheet"
-  />
-
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet"/>
+  <link href="assets/flow-design.css" rel="stylesheet"/>
   <style>
     :root {
-      --bg: #0f172a;
-      --surface: #1e293b;
-      --surface-alt: #273449;
-      --border: #33415b;
-      --text: #f1f5f9;
-      --text-dim: #94a3b8;
-      --accent: #38bdf8;
-      --accent-hover: #7dd3fc;
-      --success: #4ade80;
-      --warning: #fbbf24;
-      --danger: #f87171;
-      --gradient: linear-gradient(135deg, #38bdf8, #7c3aed, #a855f7);
+      --primary-gradient: linear-gradient(135deg, #38bdf8, #7c3aed, #a855f7);
     }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
+    body { background: #0f172a; }
+    .hero-bg {
+      position: relative;
+      overflow: hidden;
     }
-
-    body {
-      font-family: 'Inter', -apple-blinkSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      line-height: 1.6;
-      overflow-x: hidden;
+    .hero-bg::before {
+      content: '';
+      position: absolute;
+      top: -50%; left: -50%;
+      width: 200%; height: 200%;
+      background: var(--primary-gradient);
+      opacity: 0.05;
+      filter: blur(100px);
+      z-index: 0;
     }
-
-    /* ===== Layout ===== */
-    .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      padding: 0 24px;
-    }
-
-    section {
-      padding: 80px 0;
-    }
-
-    section > .container {
-      padding: 0 24px;
-    }
-
-    /* ===== Header ===== */
-    header {
-      position: sticky;
-      top: 0;
-      z-index: 100;
-      background: rgba(15, 23, 42, 0.85);
-      backdrop-filter: blur(20px);
-      border-bottom: 1px solid var(--border);
-    }
-
-    .header-inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 0;
-    }
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 22px;
-      font-weight: 900;
-      text-decoration: none;
-    }
-
-    .logo-waves {
-      font-size: 26px;
-    }
-
-    nav a {
-      color: var(--text-dim);
-      text-decoration: none;
-      font-size: 14px;
-      font-weight: 500;
-      transition: color 0.2s;
-    }
-
-    nav a:hover {
-      color: var(--accent);
-    }
-
-    nav a.btn-cta {
-      background: var(--gradient);
-      color: white;
-      padding: 8px 18px;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-    }
-
-    nav a.btn-cta:hover {
-      opacity: 0.9;
-    }
-
-    /* ===== Hero ===== */
-    .hero {
-      text-align: center;
-      padding: 100px 0 80px;
-    }
-
-    .hero h1 {
-      font-size: clamp(2.5rem, 5vw, 4rem);
-      font-weight: 900;
-      margin-bottom: 24px;
-      line-height: 1.1;
-    }
-
-    .hero .highlight {
-      background: var(--gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .hero p {
-      font-size: 1.25rem;
-      color: var(--text-dim);
-      max-width: 720px;
-      margin: 0 auto 32px;
-      line-height: 1.7;
-    }
-
-    .hero .badges {
-      display: flex;
-      gap: 12px;
-      justify-content: center;
-      flex-wrap: wrap;
-      margin-bottom: 40px;
-    }
-
-    .badge {
-      background: var(--surface-alt);
-      border: 1px solid var(--border);
-      padding: 6px 14px;
+    .hero-content { position: relative; z-index: 1; }
+    .screenshot-frame {
       border-radius: 20px;
-      font-size: 13px;
-      color: var(--text-dim);
-    }
-
-    .hero .cta {
-      display: flex;
-      gap: 16px;
-      justify-content: center;
-      flex-wrap: wrap;
-      margin-bottom: 24px;
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      font-weight: 600;
-      text-decoration: none;
-      border-radius: 10px;
-      padding: 14px 28px;
-      font-size: 16px;
-      transition: all 0.2s;
-      border: none;
-      cursor: pointer;
-    }
-
-    .btn-primary {
-      background: var(--gradient);
-      color: white;
-    }
-
-    .btn-primary:hover {
-      transform: translateY(-2px);
-      opacity: 0.9;
-    }
-
-    .btn-secondary {
-      background: var(--surface-alt);
-      color: var(--text);
+      overflow: hidden;
+      box-shadow: 0 40px 80px rgba(0,0,0,0.4);
       border: 1px solid var(--border);
+      margin-top: 40px;
     }
-
-    .btn-secondary:hover {
-      background: var(--surface);
-    }
-
-    .hero .note {
-      font-size: 14px;
-      color: var(--text-dim);
-    }
-
-    /* ===== Features Grid ===== */
-    .section-title {
-      text-align: center;
-      font-size: clamp(1.75rem, 4vw, 2.5rem);
-      font-weight: 800;
-      margin-bottom: 16px;
-    }
-
-    .section-subtitle {
-      text-align: center;
-      color: var(--text-dim);
-      max-width: 720px;
-      margin: 0 auto 60px;
-    }
-
-    .features-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 28px;
-    }
-
-    .feature-card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 32px;
-      transition: transform 0.2s, box-shadow: 0.2s;
-    }
-
-    .feature-card:hover {
-      transform: translateY(-4px);
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-    }
-
-    .feature-card .icon {
-      font-size: 36px;
-      margin-bottom: 16px;
-    }
-
-    .feature-card h3 {
-      font-size: 20px;
-      font-weight: 700;
-      margin-bottom: 12px;
-    }
-
-    .feature-card p {
-      color: var(--text-dim);
-      font-size: 15px;
-    }
-
-    /* ===== Pipeline Steps ===== */
-    .pipeline {
-      background: var(--surface);
-      border-radius: 16px;
-      padding: 40px;
-    }
-
-    .pipeline-steps {
-      display: grid;
-      grid-template-columns: 40px 1fr;
-      gap: 16px 24px;
-    }
-
-    .step-number {
-      width: 40px;
-      height: 40px;
-      background: var(--gradient);
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 14px;
-      font-weight: 700;
-      color: white;
-    }
-
-    .step-content h4 {
-      font-size: 16px;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-
-    .step-content .step-desc {
-      color: var(--text-dim);
-      font-size: 14px;
-    }
-
-    /* ===== Agents ===== */
-    .agents-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 20px;
-    }
-
-    .agent-chip {
-      background: var(--surface-alt);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 18px;
-      font-size: 14px;
-      text-align: center;
-      transition: all 0.2s;
-    }
-
-    .agent-chip:hover {
-      background: var(--surface);
-      border-color: var(--accent);
-    }
-
-    /* ===== Comparison Table ===== */
-    .comparison-table {
-      overflow-x: auto;
-    }
-
-    table {
+    .screenshot-frame img {
       width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-    }
-
-    th, td {
-      padding: 12px 16px;
-      text-align: left;
-      border-bottom: 1px solid var(--border);
-    }
-
-    th {
-      font-weight: 600;
-      color: var(--text-dim);
-      font-size: 13px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    .check {
-      color: var(--success);
-      font-weight: 700;
-    }
-
-    .x-mark {
-      color: var(--danger);
-      font-weight: 700;
-    }
-
-    /* ===== Stats ===== */
-    .stats-row {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 32px;
-      text-align: center;
-    }
-
-    .stat-number {
-      font-size: clamp(2rem, 5vw, 3rem);
-      font-weight: 900;
-      background: var(--gradient);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .stat-label {
-      color: var(--text-dim);
-      font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-    }
-
-    /* ===== CTA Section ===== */
-    .cta-section {
-      text-align: center;
-      background: linear-gradient(135deg, #1e293b, #0f172a);
-      border: 1px solid var(--border);
-    }
-
-    .cta-section h2 {
-      font-size: clamp(1.75rem, 4vw, 2.5rem);
-      font-weight: 800;
-      margin-bottom: 16px;
-    }
-
-    .cta-section p {
-      color: var(--text-dim);
-      max-width: 640px;
-      margin: 0 auto 32px;
-    }
-
-    /* ===== Footer ===== */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 40px 0;
-    }
-
-    .footer-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 40px;
-    }
-
-    .footer-col h4 {
-      font-size: 14px;
-      font-weight: 700;
-      margin-bottom: 16px;
-      color: var(--text);
-    }
-
-    .footer-col ul {
-      list-style: none;
-    }
-
-    .footer-col ul li {
-      margin-bottom: 10px;
-    }
-
-    .footer-col a {
-      color: var(--text-dim);
-      text-decoration: none;
-      font-size: 14px;
-    }
-
-    .footer-col a:hover {
-      color: var(--accent);
-    }
-
-    .footer-bottom {
-      text-align: center;
-      padding-top: 32px;
-      margin-top: 32px;
-      border-top: 1px solid var(--border);
-      color: var(--text-dim);
-      font-size: 13px;
-    }
-
-    /* ===== Code Block ===== */
-    pre {
-      background: #0d1117;
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-      overflow-x: auto;
-      font-size: 14px;
-      line-height: 1.5;
-    }
-
-    code {
-      font-family: 'Fira Code', 'Courier New', monospace;
-    }
-
-    /* ===== Responsive ===== */
-    @media (max-width: 768px) {
-      .stats-row {
-        grid-template-columns: 1fr;
-      }
-      .hero .cta {
-        flex-direction: column;
-        align-items: center;
-      }
-      .hero .cta .btn {
-        width: 100%;
-        max-width: 320px;
-      }
+      display: block;
     }
   </style>
 </head>
-
 <body>
-  <!-- ===== Header ===== -->
+
   <header>
     <div class="container">
       <div class="header-inner">
         <a href="#" class="logo">
-          <span class="logo-waves">🌊</span>
+          <span class="logo-icon">🌊</span>
           <span>SeoFlow</span>
         </a>
-        <nav>
+        <nav style="display:flex; gap:24px; align-items:center;">
           <a href="#features">Features</a>
           <a href="#pipeline">Pipeline</a>
-          <a href="#agents">Agents</a>
           <a href="#comparison">Comparison</a>
-          <a href="#docs">Docs</a>
-          <a href="https://github.com/imsankz/seoflow" class="btn-cta">GitHub</a>
+          <a href="#series">The Flow Series</a>
+          <a href="https://github.com/imsankz/seoflow" class="btn btn-small btn-primary" style="margin-left:16px;">GitHub →</a>
         </nav>
       </div>
     </div>
   </header>
 
   <!-- ===== Hero ===== -->
-  <section class="hero">
-    <div class="container">
+  <section class="hero hero-bg">
+    <div class="container hero-content">
       <h1>
-        AI-powered SEO that
-        <span class="highlight">lives in your repo</span>,
+        AI-powered SEO that <span class="highlight">lives in your repo</span>,
         not a <span class="highlight">SaaS dashboard</span>
       </h1>
       <p>
         Portable, zero-lock-in SEO pipeline. Automated audits, internal link injection,
         image enrichment, AI content generation, fact-checking, and a self-learning
         priority system. <strong>Surfer / Clearscope / MarketMuse alternative.</strong>
-        Works with Next.js, Hugo, Jekyll, Astro, 11ty, WordPress — any MDX/Markdown stack.
       </p>
 
       <div class="badges">
@@ -541,50 +87,58 @@
         <span class="badge">Node 18+</span>
         <span class="badge">MIT License</span>
         <span class="badge">19 AI Agents</span>
+        <span class="badge">Free forever</span>
       </div>
 
       <div class="cta">
-        <a
-          href="https://github.com/imsankz/SEOflow#quick-start"
-          class="btn btn-primary"
-          >Start in 5 minutes — npx seoflow audit https://yoursite.com</a
-        >
-        <a
-          href="#comparison"
-          class="btn btn-secondary"
-          >Surfer vs SeoFlow comparison</a
-        >
+        <a href="https://github.com/imsankz/seoflow#quick-start" class="btn btn-primary">
+          🚀 npx seoflow audit https://yoursite.com
+        </a>
+        <a href="#comparison" class="btn btn-secondary">Surfer vs SeoFlow</a>
       </div>
-      <p class="note">
-        Zero API keys required for URL audits. Works with your own AI keys for full pipeline.
+      <p class="note" style="color: var(--text-dim); font-size: 14px;">
+        Zero API keys for URL audits. Works with your own AI keys for full pipeline.
       </p>
     </div>
   </section>
 
-  <!-- ===== Stats ===== -->
+  <!-- ===== Flow Series Selector ===== */ -->
+  <section class="container" style="margin-top: -40px; margin-bottom: 40px;">
+    <div class="flow-selector">
+      <a href="https://imsankz.github.io/secflow/" class="flow-pill">🔐 SECflow</a>
+      <a href="https://imsankz.github.io/seoflow/" class="flow-pill active">🌊 SeoFlow</a>
+      <a href="https://imsankz.github.io/backlinkflow/" class="flow-pill">🔗 BacklinkFlow</a>
+    </div>
+  </section>
+
+  <!-- ===== Stats ===== */ -->
   <section class="container">
-    <div class="stats-row">
+    <div class="stats-row" style="margin-bottom: 60px;">
       <div>
         <div class="stat-number">19</div>
         <div class="stat-label">AI Agents</div>
+        <div class="stat-desc" style="margin-top:8px; color:var(--text-dim); font-size:14px;">Technical, content, schema, local, GEO, drift, backlinks, programmatic, image-gen, llms-txt</div>
       </div>
       <div>
         <div class="stat-number">12</div>
         <div class="stat-label">Pipeline Steps</div>
+        <div class="stat-desc" style="margin-top:8px; color:var(--text-dim); font-size:14px;">Keywords → Meta → Links → Images → Content → Review → Schema → Quality → Technical → FactCheck → Report</div>
       </div>
       <div>
         <div class="stat-number">7</div>
         <div class="stat-label">LLM Providers</div>
+        <div class="stat-desc" style="margin-top:8px; color:var(--text-dim); font-size:14px;">Gemini, OpenRouter, Anthropic, OpenAI-compat, Claude CLI, Codex CLI, Gemini CLI</div>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- ===== Features ===== -->
-  <section id="features">
+  <!-- ===== Features ===== */ -->
+  <section id="features" class="section-centered">
     <div class="container">
       <h2 class="section-title">Why SeoFlow?</h2>
       <p class="section-subtitle">
-        Everything you need for programmatic SEO, running locally in your repo
+        Everything you need for programmatic SEO, running locally in your repo.
+        No per-seat pricing. No lock-in. No surprises.
       </p>
 
       <div class="features-grid">
@@ -611,9 +165,8 @@
           <div class="icon">🔄</div>
           <h3>7-Provider Auto-Fallback</h3>
           <p>
-            Gemini, OpenRouter, Anthropic, OpenAI-compatible, Claude CLI,
-            Codex CLI, Gemini CLI. Set one key, it just works. Silent skip
-            when other APIs (Ahrefs, NeuronWriter, Pexels) are missing.
+            Gemini, OpenRouter, Anthropic, OpenAI-compatible, plus CLI agents.
+            Set one key, it just works. Silent skip when optional APIs are missing.
           </p>
         </div>
 
@@ -630,9 +183,8 @@
           <div class="icon">🛡️</div>
           <h3>Graceful Degradation</h3>
           <p>
-            No Ahrefs key? No NeuronWriter? No Pexels? SeoFlow silently
-            skips that step and keeps going. Never crashes because a key is
-            missing.
+            No Ahrefs? No NeuronWriter? No Pexels? SeoFlow silently skips that
+            step and keeps going. Never crashes because a key is missing.
           </p>
         </div>
 
@@ -641,186 +193,138 @@
           <h3>Zero-Setup URL Audit</h3>
           <p>
             <code>npx seoflow audit https://yoursite.com</code> — works with
-            zero API keys and zero configuration. Health score, AI action plan,
-            and audit report saved locally.
+            zero API keys. Health score, AI action plan, and audit report saved locally.
           </p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ===== Pipeline Steps ===== -->
-  <section id="pipeline" class="container">
-    <h2 class="section-title">12 Pipeline Steps</h2>
-    <p class="section-subtitle">
-      Each step runs through an orchestrator with dependency resolution,
-      brain vault logging, and auto-fallback across LLM providers.
-    </p>
+  <!-- ===== Pipeline =====*/ -->
+  <section id="pipeline" class="container" style="background: var(--surface);">
+    <div class="container" style="padding: 0;">
+      <h2 class="section-title">12 Pipeline Steps</h2>
+      <p class="section-subtitle">
+        Dependency-aware orchestrator with brain vault logging and LLM auto-fallback.
+      </p>
 
-    <div class="pipeline">
-      <div class="pipeline-steps">
-        <div class="step-number">0</div>
-        <div class="step-content">
-          <h4>Keywords</h4>
-          <div class="step-desc">
-            Ahrefs/SEMrush (if key) or Ubersuggest MCP → focusKeyword + related terms
-          </div>
-        </div>
-
-        <div class="step-number">1</div>
-        <div class="step-content">
-          <h4>Meta</h4>
-          <div class="step-desc">
-            Schema, description length, focusKeyword, lastModified fixes
-          </div>
-        </div>
-
-        <div class="step-number">2</div>
-        <div class="step-content">
-          <h4>Links</h4>
-          <div class="step-desc">
-            Inject internal links from your configured triggers
-          </div>
-        </div>
-
-        <div class="step-number">3</div>
-        <div class="step-content">
-          <h4>Images</h4>
-          <div class="step-desc">
-            Pexels/Unsplash fetch, 1 per H2 section (max 2)
-          </div>
-        </div>
-
-        <div class="step-number">4</div>
-        <div class="step-content">
-          <h4>Neuron</h4>
-          <div class="step-desc">
-            NeuronWriter NLP: target word count, missing terms, People Also Ask
-          </div>
-        </div>
-
-        <div class="step-number">5</div>
-        <div class="step-content">
-          <h4>Content</h4>
-          <div class="step-desc">
-            Gemini 2.5 Flash: FAQ, thin section expansion, NLP term weaving
-          </div>
-        </div>
-
-        <div class="step-number">6</div>
-        <div class="step-content">
-          <h4>Review</h4>
-          <div class="step-desc">
-            SEO review: score (1-10), quick wins, auto-fix title/meta
-          </div>
-        </div>
-
-        <div class="step-number">7</div>
-        <div class="step-content">
-          <h4>Schema</h4>
-          <div class="step-desc">
-            Validate and generate Schema.org structured data
-          </div>
-        </div>
-
-        <div class="step-number">8</div>
-        <div class="step-content">
-          <h4>Quality</h4>
-          <div class="step-desc">
-            Content quality audit (E-E-A-T signals, readability)
-          </div>
-        </div>
-
-        <div class="step-number">9</div>
-        <div class="step-content">
-          <h4>Technical</h4>
-          <div class="step-desc">
-            Broken links, redirect chains, canonical, hreflang, sitemap, robots, mobile
-          </div>
-        </div>
-
-        <div class="step-number">10</div>
-        <div class="step-content">
-          <h4>FactCheck</h4>
-          <div class="step-desc">
-            Price/claim verification via Google Search grounding
-          </div>
-        </div>
-
-        <div class="step-number">11</div>
-        <div class="step-content">
-          <h4>Report</h4>
-          <div class="step-desc">
-            Computed health score, issues, quick wins — saved locally
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===== Screenshot ===== -->
-  <section class="container" style="margin-top: 60px; text-align: center;">
-    <img
-      src="audit-report.png"
-      alt="SeoFlow URL audit report — health score, technical issues, content audit, AI action plan"
-      style="max-width: 100%; border-radius: 16px; border: 1px solid var(--border); margin: 0 auto;"
-    />
-  </section>
-
-  <!-- ===== Commands ===== -->
-  <section class="container" style="margin-top: 60px;">
-    <div style="max-width: 720px; margin: 0 auto;">
-      <h2 class="section-title">Commands</h2>
-      <p class="section-subtitle">One tool, many modes</p>
-
-      <div style="overflow-x: auto; margin-top: 40px;">
+      <div class="step-container">
         <table>
           <thead>
             <tr>
-              <th>Command</th>
+              <th>#</th>
+              <th>Step</th>
               <th>Description</th>
             </tr>
           </thead>
           <tbody>
+            <tr><td>0</td><td><strong>Keywords</strong></td><td>Ahrefs/SEMrush (if key) or Ubersuggest MCP → focusKeyword + related terms</td></tr>
+            <tr><td>1</td><td><strong>Meta</strong></td><td>Schema, description length, focusKeyword, lastModified fixes</td></tr>
+            <tr><td>2</td><td><strong>Links</strong></td><td>Inject internal links from your configured triggers</td></tr>
+            <tr><td>3</td><td><strong>Images</strong></td><td>Pexels/Unsplash fetch — 1 per H2 section (max 2)</td></tr>
+            <tr><td>4</td><td><strong>Neuron</strong></td><td>NeuronWriter NLP: target word count, missing terms, People Also Ask</td></tr>
+            <tr><td>5</td><td><strong>Content</strong></td><td>Gemini 2.5 Flash: FAQ, thin section expansion, NLP term weaving</td></tr>
+            <tr><td>6</td><td><strong>Review</strong></td><td>SEO review: 1-10 score, quick wins, auto-fix title/meta</td></tr>
+            <tr><td>7</td><td><strong>Schema</strong></td><td>Validate and generate Schema.org structured data (16 types)</td></tr>
+            <tr><td>8</td><td><strong>Quality</strong></td><td>Content quality audit (E-E-A-T signals, readability)</td></tr>
+            <tr><td>9</td><td><strong>Technical</strong></td><td>Broken links, redirects, canonical, hreflang, sitemap, robots, mobile</td></tr>
+            <tr><td>10</td><td><strong>FactCheck</strong></td><td>Price/claim verification via Google Search grounding</td></tr>
+            <tr><td>11</td><td><strong>Report</strong></td><td>Computed health score, issues, quick wins — saved locally</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Screenshot =====*/ -->
+  <section class="container">
+    <div class="screenshot-frame">
+      <img src="audit-report.png" alt="SeoFlow URL audit report — health score, technical issues, content audit, AI action plan"/>
+    </div>
+  </section>
+
+  <!-- ===== Comparison =====*/ -->
+  <section id="comparison" class="section-centered">
+    <div class="container">
+      <h2 class="section-title">SeoFlow vs SaaS Alternatives</h2>
+      <p class="section-subtitle">
+        Zero lock-in, runs in your repo, works with your own AI keys.
+      </p>
+
+      <div class="comparison-table">
+        <table>
+          <thead>
             <tr>
-              <td><code>seoflow init</code></td>
-              <td>Interactive setup — generates seoflow.config.json</td>
+              <th>Feature</th>
+              <th>Surfer SEO</th>
+              <th>Clearscope</th>
+              <th>MarketMuse</th>
+              <th><span class="badge-gradient">SeoFlow</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Monthly cost</strong></td>
+              <td>$89–$399</td>
+              <td>$89–$299</td>
+              <td>$99–$399</td>
+              <td class="check">Free (MIT)</td>
             </tr>
             <tr>
-              <td><code>seoflow status</code></td>
-              <td>Pipeline state, GSC coverage, learning summary</td>
+              <td><strong>Where it runs</strong></td>
+              <td>SaaS dashboard</td>
+              <td>SaaS dashboard</td>
+              <td>SaaS dashboard</td>
+              <td class="check">Your repo</td>
             </tr>
             <tr>
-              <td><code>seoflow audit</code></td>
-              <td>Run pipeline on top 10 priority posts</td>
+              <td><strong>AI provider</strong></td>
+              <td>Locked in</td>
+              <td>Locked in</td>
+              <td>Locked in</td>
+              <td class="check">Any OpenAI-compatible</td>
             </tr>
             <tr>
-              <td><code>seoflow audit &lt;url&gt;</code></td>
-              <td>Live URL SEO audit — fetch, compute scores, save to vault</td>
+              <td><strong>Internal link injection</strong></td>
+              <td class="check">✓</td>
+              <td class="check">✓</td>
+              <td class="check">✓</td>
+              <td class="check">✓ + configurable triggers</td>
             </tr>
             <tr>
-              <td><code>seoflow learn</code></td>
-              <td>Learning insights (step effectiveness, content patterns)</td>
+              <td><strong>Fact-checking</strong></td>
+              <td class="x-mark">—</td>
+              <td class="x-mark">—</td>
+              <td class="x-mark">—</td>
+              <td class="check">✓ Google Search grounding</td>
             </tr>
             <tr>
-              <td><code>seoflow generate</code></td>
-              <td>Generate new posts from keywords</td>
+              <td><strong>GEO/AEO monitoring</strong></td>
+              <td class="x-mark">—</td>
+              <td class="x-mark">—</td>
+              <td class="x-mark">—</td>
+              <td class="check">✓ Built-in</td>
             </tr>
             <tr>
-              <td><code>seoflow brief &lt;keyword&gt;</code></td>
-              <td>Generate SEO content brief</td>
+              <td><strong>Drift monitoring</strong></td>
+              <td class="check">✓</td>
+              <td class="x-mark">—</td>
+              <td class="x-mark">—</td>
+              <td class="check">✓ Built-in</td>
             </tr>
             <tr>
-              <td><code>seoflow citations</code></td>
-              <td>Check if ChatGPT/Gemini mention your site</td>
+              <td><strong>Self-learning</strong></td>
+              <td class="x-mark">—</td>
+              <td class="x-mark">—</td>
+              <td class="x-mark">—</td>
+              <td class="check">✓ Priority re-ranking</td>
             </tr>
             <tr>
-              <td><code>seoflow brain</code></td>
-              <td>Brain summary + vault stats + next actions</td>
-            </tr>
-            <tr>
-              <td><code>seoflow extensions</code></td>
-              <td>List/install optional extensions</td>
+              <td><strong>Lock-in risk</strong></td>
+              <td class="x-mark">High</td>
+              <td class="x-mark">High</td>
+              <td class="x-mark">High</td>
+              <td class="check">None</td>
             </tr>
           </tbody>
         </table>
@@ -828,176 +332,50 @@
     </div>
   </section>
 
-  <!-- ===== Agents ===== -->
-  <section id="agents" style="background: var(--surface);">
-    <div class="container">
-      <h2 class="section-title">19 Interactive SEO Agents</h2>
-      <p class="section-subtitle">
-        Installed automatically into your AI coding tool after running the installer.
-      </p>
-
-      <div class="agents-grid">
-        <div class="agent-chip">🔍 Technical SEO</div>
-        <div class="agent-chip">✍️ Content Audit</div>
-        <div class="agent-chip">🔗 Schema Generator</div>
-        <div class="agent-chip">📍 Local SEO</div>
-        <div class="agent-chip">📡 GEO/GEO Citations</div>
-        <div class="agent-chip">📉 SEO Drift</div>
-        <div class="agent-chip">🔗 Backlinks</div>
-        <div class="agent-chip">📝 Programmatic Content</div>
-        <div class="agent-chip">🖼️ Image Generation</div>
-        <div class="agent-chip">🧠 llms-txt Generator</div>
-        <div class="agent-chip">🔑 Keyword Research</div>
-        <div class="agent-chip">📊 NeuronWriter NLP</div>
-        <div class="agent-chip">🔄 Internal Link Injection</div>
-        <div class="agent-chip">📏 Content Expansion</div>
-        <div class="agent-chip">📋 SEO Review</div>
-        <div class="agent-chip">💯 Quality Audit</div>
-        <div class="agent-chip">✅ Fact Check</div>
-        <div class="agent-chip">📤 Publish Assistant</div>
-        <div class="agent-chip">🧭 Cluster Planner</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===== Comparison ===== -->
-  <section id="comparison" class="container">
-    <h2 class="section-title">SeoFlow vs SaaS Alternatives</h2>
-    <p class="section-subtitle">
-      Zero lock-in, runs in your repo, works with your own AI keys.
-    </p>
-
-    <div class="comparison-table">
-      <table>
-        <thead>
-          <tr>
-            <th>Feature</th>
-            <th>Surfer SEO</th>
-            <th>Clearscope</th>
-            <th>SeoFlow</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>Pricing</strong></td>
-            <td>$89–$399/mo</td>
-            <td>$89–$299/mo</td>
-            <td class="check">Free (MIT)</td>
-          </tr>
-          <tr>
-            <td><strong>Where it runs</strong></td>
-            <td>SaaS dashboard</td>
-            <td>SaaS dashboard</td>
-            <td class="check">Your repo</td>
-          </tr>
-          <tr>
-            <td><strong>AI provider</strong></td>
-            <td>Locked in</td>
-            <td>Locked in</td>
-            <td class="check">Any OpenAI-compatible</td>
-          </tr>
-          <tr>
-            <td><strong>Internal link injection</strong></td>
-            <td class="check">✓</td>
-            <td class="check">✓</td>
-            <td class="check">✓ (configurable triggers)</td>
-          </tr>
-          <tr>
-            <td><strong>Fact-checking</strong></td>
-            <td class="x-mark">—</td>
-            <td class="x-mark">—</td>
-            <td class="check">✓ Google Search grounding</td>
-          </tr>
-          <tr>
-            <td><strong>GSC integration</strong></td>
-            <td class="check">✓</td>
-            <td class="check">✓</td>
-            <td class="check">✓ Live + CSV fallback</td>
-          </tr>
-          <tr>
-            <td><strong>GEO/AEO monitoring</strong></td>
-            <td class="x-mark">—</td>
-            <td class="x-mark">—</td>
-            <td class="check">✓ Built-in</td>
-          </tr>
-          <tr>
-            <td><strong>Drift monitoring</strong></td>
-            <td class="check">✓</td>
-            <td class="x-mark">—</td>
-            <td class="check">✓ Built-in</td>
-          </tr>
-          <tr>
-            <td><strong>Self-learning</strong></td>
-            <td class="x-mark">—</td>
-            <td class="x-mark">—</td>
-            <td class="check">✓ Priority re-ranking</td>
-          </tr>
-          <tr>
-            <td><strong>Lock-in</strong></td>
-            <td class="x-mark">High</td>
-            <td class="x-mark">High</td>
-            <td class="check">None</td>
-          </tr>
-        </table>
-      </div>
-    </div>
-  </section>
-
-  <!-- ===== Flow Series ===== -->
-  <section style="background: var(--surface);">
+  <!-- ===== Flow Series =====*/ -->
+  <section id="series" style="background: var(--surface);">
     <div class="container">
       <h2 class="section-title">The *Flow* Series</h2>
       <p class="section-subtitle">
         Three zero-cost CLI tools built on the same idea: free engines + your own AI agent.
+        MIT licensed, npm-published, no SaaS upsells.
       </p>
 
       <div class="stats-row" style="margin-top: 40px;">
         <div>
-          <div style="font-size: 48px; margin-bottom: 8px;">🔐</div>
+          <div style="font-size: 48px; margin-bottom: 16px;">🔐</div>
           <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">SECflow</h3>
-          <p style="color: var(--text-dim); font-size: 14px;">
-            Security scanning for AI-driven repos — secrets, deps, custom rules
+          <p style="color: var(--text-dim); font-size: 14px; margin-bottom: 12px;">
+            Security scanning for AI-driven repos — gitleaks, trivy, npm audit
           </p>
-          <a
-            href="https://github.com/imsankz/SECflow"
-            style="color: var(--accent); text-decoration: none; font-size: 13px;"
-            >github.com/imsankz/SECflow</a
-          >
+          <a href="https://imsankz.github.io/secflow/" class="btn btn-small btn-secondary">View SECflow →</a>
         </div>
         <div>
-          <div style="font-size: 48px; margin-bottom: 8px;">🌊</div>
+          <div style="font-size: 48px; margin-bottom: 16px;">🌊</div>
           <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">SeoFlow</h3>
-          <p style="color: var(--text-dim); font-size: 14px;">
+          <p style="color: var(--text-dim); font-size: 14px; margin-bottom: 12px;">
             AI-powered SEO pipeline — audit, internal links, content gen, GSC
           </p>
-          <a
-            href="https://github.com/imsankz/seoflow"
-            style="color: var(--accent); text-decoration: none; font-size: 13px;"
-            >github.com/imsankz/seoflow</a
-          >
+          <span class="badge" style="background: var(--gradient); color: white;">You are here</span>
         </div>
         <div>
-          <div style="font-size: 48px; margin-bottom: 8px;">🔗</div>
+          <div style="font-size: 48px; margin-bottom: 16px;">🔗</div>
           <h3 style="font-size: 20px; font-weight: 700; margin-bottom: 8px;">BacklinkFlow</h3>
-          <p style="color: var(--text-dim); font-size: 14px;">
-            Backlink & directory submission automation — 1,100+ directories, Playwright, $0
+          <p style="color: var(--text-dim); font-size: 14px; margin-bottom: 12px;">
+            Backlink & directory submission — 1,123 directories, Playwright
           </p>
-          <a
-            href="https://github.com/imsankz/backlinkflow"
-            style="color: var(--accent); text-decoration: none; font-size: 13px;"
-            >github.com/imsankz/backlinkflow</a
-          >
+          <a href="https://imsankz.github.io/backlinkflow/" class="btn btn-small btn-secondary">View BacklinkFlow →</a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ===== Quick Start ===== -->
+  <!-- ===== Quick Start =====*/ -->
   <section id="quick-start" class="container">
-    <h2 class="section-title">Quick Start</h2>
-    <p class="section-subtitle">In less than a minute</p>
-
     <div style="max-width: 720px; margin: 0 auto;">
+      <h2 class="section-title">Quick Start</h2>
+      <p class="section-subtitle">In less than a minute</p>
+
       <pre><code># Zero-setup URL audit (no keys needed)
 npx seoflow audit https://example.com
 
@@ -1006,20 +384,15 @@ bash &lt;(curl -s https://raw.githubusercontent.com/imsankz/seoflow/main/install
 
 # Or install via npm
 npm install -D seoflow
-npx seoflow init
-</code></pre>
+npx seoflow init</code></pre>
 
-      <div style="margin-top: 40px; text-align: center;">
-        <a
-          href="https://github.com/imsankz/seoflow#quick-start"
-          class="btn btn-primary"
-          >View Full Docs on GitHub</a
-        >
+      <div style="text-align: center; margin-top: 40px;">
+        <a href="https://github.com/imsankz/seoflow" class="btn btn-primary">📦 Install SeoFlow on GitHub</a>
       </div>
     </div>
   </section>
 
-  <!-- ===== Footer ===== -->
+  <!-- ===== Footer =====*/ -->
   <footer>
     <div class="container">
       <div class="footer-grid">
@@ -1043,18 +416,17 @@ npx seoflow init
           </ul>
         </div>
         <div class="footer-col">
-          <h4>The *Flow* Series</h4>
+          <h4>The Flow Series</h4>
           <ul>
-            <li><a href="https://github.com/imsankz/SECflow">SECflow</a> — Security scanning</li>
-            <li><a href="https://github.com/imsankz/seoflow">SeoFlow</a> — SEO pipeline</li>
-            <li><a href="https://github.com/imsankz/backlinkflow">BacklinkFlow</a> — Backlinks</li>
+            <li><a href="https://imsankz.github.io/secflow/">SECflow</a> — Security scanning</li>
+            <li><a href="https://imsankz.github.io/seoflow/">SeoFlow</a> — SEO pipeline</li>
+            <li><a href="https://imsankz.github.io/backlinkflow/">BacklinkFlow</a> — Backlinks</li>
           </ul>
         </div>
         <div class="footer-col">
           <h4>Built by</h4>
           <ul>
             <li><a href="https://github.com/imsankz">@imsankz</a></li>
-            <li><a href="https://ko-fi.com/chasingwhereabouts">☕ Buy me a coffee</a></li>
             <li><div id="kofiwidget2"></div></li>
             <li><span style="color: var(--text-dim); font-size: 13px;">MIT License</span></li>
           </ul>
@@ -1062,26 +434,13 @@ npx seoflow init
       </div>
 
       <div class="footer-bottom">
-        <p>
-          SeoFlow v0.3.1 · MIT License · Built for content teams who want SEO
-          without the SaaS bill
-        </p>
+        <p>SeoFlow v0.3.1 · MIT License · Built for content teams who want SEO without the SaaS bill</p>
       </div>
     </div>
   </footer>
 
-  <script>
-    // Smooth scroll for anchor links
-    document.addEventListener('click', (e) => {
-      const href = e.target.closest('a')?.getAttribute('href');
-      if (href && href.startsWith('#')) {
-        e.preventDefault();
-        document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' });
-      }
-    });
-  <!-- Ko-fi widget -->
-  <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
-  <script type='text/javascript'>
+  <script type="text/javascript" src="https://storage.ko-fi.com/cdn/widget/Widget_2.js"></script>
+  <script type="text/javascript">
     kofiwidget2.init('Buy me a Coffee', '#72a4f2', 'B0B4EDYFG');
     kofiwidget2.draw();
   </script>
