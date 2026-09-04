@@ -1055,6 +1055,7 @@ npx seoflow init
           <ul>
             <li><a href="https://github.com/imsankz">@imsankz</a></li>
             <li><a href="https://ko-fi.com/chasingwhereabouts">☕ Buy me a coffee</a></li>
+            <li><div id="kofiwidget2"></div></li>
             <li><span style="color: var(--text-dim); font-size: 13px;">MIT License</span></li>
           </ul>
         </div>
@@ -1078,6 +1079,11 @@ npx seoflow init
         document.querySelector(href)?.scrollIntoView({ behavior: 'smooth' });
       }
     });
+  <!-- Ko-fi widget -->
+  <script type='text/javascript' src='https://storage.ko-fi.com/cdn/widget/Widget_2.js'></script>
+  <script type='text/javascript'>
+    kofiwidget2.init('Buy me a Coffee', '#72a4f2', 'B0B4EDYFG');
+    kofiwidget2.draw();
   </script>
 </body>
 </html>
