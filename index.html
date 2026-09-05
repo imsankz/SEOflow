@@ -3,142 +3,397 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<meta name="description" content="SeoFlow — AI-powered SEO pipeline that lives in your repo. 19 agents, 12 steps, zero lock-in."/>
+<title>SeoFlow — AI SEO Pipeline That Lives in Your Repo</title>
+<meta name="description" content="Self-hosted SEO pipeline with 19 AI agents and 12 steps: audits, internal links, content generation, GSC tracking. Open source, MIT-licensed, zero lock-in."/>
+<link rel="canonical" href="https://imsankz.github.io/SEOflow/"/>
+<meta name="robots" content="index, follow"/>
+<meta name="theme-color" content="#0b0d0f"/>
+
 <meta property="og:title" content="SeoFlow — AI SEO Pipeline That Lives in Your Repo"/>
-<meta property="og:description" content="Audit, internal links, content gen, GSC. Surfer/Clearscope alternative. Zero SaaS lock-in."/>
+<meta property="og:description" content="Self-hosted SEO pipeline with 19 AI agents and 12 steps — audits, internal links, content generation, and GSC tracking. The open-source alternative to Surfer and Clearscope."/>
 <meta property="og:image" content="https://imsankz.github.io/SEOflow/og-image.png"/>
 <meta property="og:url" content="https://imsankz.github.io/SEOflow/"/>
 <meta property="og:type" content="website"/>
 <meta name="twitter:card" content="summary_large_image"/>
-<title>SeoFlow — AI SEO Pipeline in Your Repo</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E🌊%3C/text%3E%3C/svg%3E">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<meta name="twitter:title" content="SeoFlow — AI SEO Pipeline That Lives in Your Repo"/>
+<meta name="twitter:description" content="19 AI agents, 12 pipeline steps, zero SaaS lock-in. Runs from your repo with npx."/>
+<meta name="twitter:image" content="https://imsankz.github.io/SEOflow/og-image.png"/>
+
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8C%8A%3C/text%3E%3C/svg%3E">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <link href="assets/flow-design.css" rel="stylesheet"/>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "SeoFlow",
+  "url": "https://imsankz.github.io/SEOflow/",
+  "description": "Self-hosted, git-native SEO pipeline with 19 AI agents across 12 steps: technical audits, internal linking, content generation, schema, and Search Console-driven prioritization.",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "Node.js 18+",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "license": "https://opensource.org/licenses/MIT",
+  "codeRepository": "https://github.com/imsankz/SEOflow",
+  "downloadUrl": "https://www.npmjs.com/package/seoflow",
+  "softwareHelp": "https://github.com/imsankz/SEOflow/blob/main/docs/getting-started.md"
+}
+</script>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Do I need API keys to try SeoFlow?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. A URL audit runs with zero API keys. Content generation and the other AI-driven steps need one key from any supported provider." }
+    },
+    {
+      "@type": "Question",
+      "name": "Which AI providers does SeoFlow support?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Gemini, OpenRouter, Anthropic, any OpenAI-compatible endpoint, and local CLI agents. Add one key and the pipeline runs; missing keys just skip that step." }
+    },
+    {
+      "@type": "Question",
+      "name": "How is SeoFlow different from Surfer or Clearscope?",
+      "acceptedAnswer": { "@type": "Answer", "text": "Surfer and Clearscope are hosted dashboards with per-seat pricing and a locked-in AI provider. SeoFlow is an MIT-licensed CLI tool that runs in your own repo, with your own AI key, and no monthly cost." }
+    },
+    {
+      "@type": "Question",
+      "name": "Does my content or site data leave my machine?",
+      "acceptedAnswer": { "@type": "Answer", "text": "No. SeoFlow runs locally against your repo. The only outbound calls are to the AI provider and data sources you configure yourself." }
+    },
+    {
+      "@type": "Question",
+      "name": "Is SeoFlow really free?",
+      "acceptedAnswer": { "@type": "Answer", "text": "The tool is free and MIT-licensed. You only pay for whichever AI provider you connect, at that provider's own rates." }
+    }
+  ]
+}
+</script>
 </head>
 <body>
-<header><div class="container"><div class="header-inner">
-<a href="#" class="logo"><span class="logo-icon">🌊</span><span>SeoFlow</span></a>
-<nav><a href="#features">Features</a><a href="#pipeline">Pipeline</a><a href="#comparison">Compare</a><a href="#series">Series</a><a href="https://github.com/imsankz/SEOflow" class="btn btn-small btn-primary">GitHub →</a></nav>
-</div></div></header>
+<a href="#main" class="skip-link">Skip to content</a>
 
-<section class="hero"><div class="container">
-<div class="flow-selector reveal" style="margin-bottom:32px">
-<a href="https://imsankz.github.io/SECflow/" class="flow-pill">🔐 SECflow</a>
-<a href="https://imsankz.github.io/SEOflow/" class="flow-pill active">🌊 SeoFlow</a>
-<a href="https://imsankz.github.io/backlinkflow/" class="flow-pill">🔗 BacklinkFlow</a>
+<header>
+  <div class="container header-inner">
+    <a href="#" class="logo"><span class="logo-icon" aria-hidden="true">🌊</span><span>SeoFlow</span></a>
+    <nav class="primary-nav" aria-label="Primary">
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#pipeline">Pipeline</a>
+        <a href="#comparison">Compare</a>
+        <a href="#faq">FAQ</a>
+      </div>
+      <a href="https://github.com/imsankz/SEOflow" class="btn btn-small btn-secondary">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="series-strip">
+  <div class="container">
+    <span>Part of the Flow series:</span>
+    <a href="https://imsankz.github.io/SECflow/">SecFlow</a>
+    <span class="sep">·</span>
+    <strong>SeoFlow</strong>
+    <span class="sep">·</span>
+    <a href="https://imsankz.github.io/backlinkflow/">BacklinkFlow</a>
+  </div>
 </div>
-<h1 class="reveal">SEO that <span class="gradient-text">lives in your repo</span>,<br/>not a SaaS dashboard</h1>
-<p class="reveal">Portable, zero-lock-in SEO pipeline. Audits, internal links, image enrichment, AI content, fact-checking, and a self-learning priority system. The Surfer / Clearscope alternative you self-host.</p>
-<div class="cta reveal">
-<a href="https://github.com/imsankz/SEOflow#quick-start" class="btn btn-primary">🚀 npx seoflow audit https://yoursite.com</a>
-<a href="#comparison" class="btn btn-secondary">Surfer vs SeoFlow</a>
-</div>
-<p class="hero-note reveal">Zero API keys for URL audits · MIT · Node 18+</p>
-<div class="screenshot-frame reveal"><img src="audit-report.png" alt="SeoFlow audit report"/></div>
-</div></section>
 
-<section id="features"><div class="container section-centered">
-<h2 class="section-title reveal">Why SeoFlow?</h2>
-<p class="section-subtitle reveal">Everything for programmatic SEO, running locally. No per-seat pricing. No lock-in.</p>
-<div class="features-grid">
-<div class="feature-card reveal"><div class="icon">🏠</div><h3>Lives in your repo</h3><p>No login, no seats. Content and keys stay on your machine. Git-native, reviewable diffs.</p></div>
-<div class="feature-card reveal"><div class="icon">🤖</div><h3>19 AI agents</h3><p>Technical, content, schema, local, GEO, drift, backlinks, programmatic, image-gen, llms-txt.</p></div>
-<div class="feature-card reveal"><div class="icon">🔄</div><h3>7-provider fallback</h3><p>Gemini, OpenRouter, Anthropic, OpenAI-compatible + CLI agents. One key and it runs.</p></div>
-<div class="feature-card reveal"><div class="icon">📈</div><h3>Self-learning priority</h3><p>Records what moved GSC and re-ranks the next run. Always the highest-leverage post first.</p></div>
-<div class="feature-card reveal"><div class="icon">🛡️</div><h3>Graceful degradation</h3><p>No Ahrefs? No NeuronWriter? Steps skip silently. Never crashes on a missing key.</p></div>
-<div class="feature-card reveal"><div class="icon">⚡</div><h3>Zero-setup audit</h3><p><code>npx seoflow audit https://yoursite.com</code> — health score + AI action plan, no config.</p></div>
-</div></div></section>
+<main id="main">
 
-<section id="pipeline"><div class="container section-centered">
-<h2 class="section-title reveal">12-step pipeline</h2>
-<p class="section-subtitle reveal">Dependency-aware orchestrator with brain-vault logging and LLM fallback.</p>
-<div class="stats-row reveal" style="margin-bottom:24px">
-<div class="stat-card"><div class="stat-number">19</div><div class="stat-label">Agents</div><div class="stat-desc">Technical → GEO → drift → backlinks</div></div>
-<div class="stat-card"><div class="stat-number">12</div><div class="stat-label">Steps</div><div class="stat-desc">Keywords → Report, fully orchestrated</div></div>
-<div class="stat-card"><div class="stat-number">7</div><div class="stat-label">Providers</div><div class="stat-desc">Gemini → OpenRouter → Anthropic → local</div></div>
-</div>
-<div class="comparison-table reveal"><table>
-<thead><tr><th>#</th><th>Step</th><th>What it does</th></tr></thead>
-<tbody>
-<tr><td><strong>0</strong></td><td><strong>Keywords</strong></td><td>Ahrefs/SEMrush or Ubersuggest → focus keyword + related</td></tr>
-<tr><td><strong>1</strong></td><td><strong>Meta</strong></td><td>Schema, description length, focus keyword, lastModified</td></tr>
-<tr><td><strong>2</strong></td><td><strong>Links</strong></td><td>Internal links from your configured triggers</td></tr>
-<tr><td><strong>3</strong></td><td><strong>Images</strong></td><td>Pexels/Unsplash, 1 per H2 section</td></tr>
-<tr><td><strong>4</strong></td><td><strong>Neuron</strong></td><td>NLP targets, missing terms, People Also Ask</td></tr>
-<tr><td><strong>5</strong></td><td><strong>Content</strong></td><td>FAQ expansion, thin-section rewrite, term weaving</td></tr>
-<tr><td><strong>6</strong></td><td><strong>Review</strong></td><td>1–10 score, quick wins, auto-fix title/meta</td></tr>
-<tr><td><strong>7</strong></td><td><strong>Schema</strong></td><td>16 Schema.org types, validated</td></tr>
-<tr><td><strong>8</strong></td><td><strong>Quality</strong></td><td>E-E-A-T signals, readability</td></tr>
-<tr><td><strong>9</strong></td><td><strong>Technical</strong></td><td>Broken links, redirects, canonical, hreflang, sitemap</td></tr>
-<tr><td><strong>10</strong></td><td><strong>FactCheck</strong></td><td>Price/claim verification via search grounding</td></tr>
-<tr><td><strong>11</strong></td><td><strong>Report</strong></td><td>Health score, issues, quick wins — saved locally</td></tr>
-</tbody></table></div>
-</div></section>
+<section class="hero">
+  <div class="container hero-grid">
+    <div>
+      <h1>
+        <span>SEO that lives in your repo.</span>
+        <span class="dim">Not a SaaS dashboard.</span>
+      </h1>
+      <p class="lead">Audit your site, generate content, and fix technical SEO from the command line, using your own AI keys. No dashboard, no seats, no lock-in — the open-source alternative to Surfer and Clearscope.</p>
+      <div class="cta-row">
+        <a href="#quick-start" class="btn btn-primary">Get started</a>
+        <a href="#comparison" class="btn btn-secondary">Compare to Surfer &amp; Clearscope</a>
+      </div>
+      <p class="hero-note">No API keys required for a URL audit. MIT-licensed, built for <code>Node 18+</code>.</p>
+    </div>
 
-<section id="comparison"><div class="container section-centered">
-<h2 class="section-title reveal">SeoFlow vs SaaS</h2>
-<p class="section-subtitle reveal">Same outcomes. Zero rent.</p>
-<div class="comparison-table reveal"><table>
-<thead><tr><th></th><th>Surfer</th><th>Clearscope</th><th><span class="badge-gradient">SeoFlow</span></th></tr></thead>
-<tbody>
-<tr><td><strong>Cost</strong></td><td>$89–399/mo</td><td>$89–299/mo</td><td class="check">Free (MIT)</td></tr>
-<tr><td><strong>Runs in</strong></td><td>Dashboard</td><td>Dashboard</td><td class="check">Your repo</td></tr>
-<tr><td><strong>AI provider</strong></td><td>Locked</td><td>Locked</td><td class="check">Any OpenAI-compatible</td></tr>
-<tr><td><strong>Fact-check</strong></td><td class="x-mark">—</td><td class="x-mark">—</td><td class="check">✓ grounded</td></tr>
-<tr><td><strong>GEO / drift</strong></td><td class="x-mark">—</td><td class="x-mark">—</td><td class="check">✓ built-in</td></tr>
-<tr><td><strong>Self-learning</strong></td><td class="x-mark">—</td><td class="x-mark">—</td><td class="check">✓ GSC re-ranking</td></tr>
-<tr><td><strong>Lock-in</strong></td><td class="x-mark">High</td><td class="x-mark">High</td><td class="check">None</td></tr>
-</tbody></table></div>
-</div></section>
+    <div>
+      <div class="terminal" role="img" aria-label="Terminal showing an example SeoFlow audit run: health score 78 out of 100, three quick wins found">
+        <div class="terminal-bar">
+          <span class="terminal-dot"></span><span class="terminal-dot"></span><span class="terminal-dot"></span>
+          <span class="terminal-title">zsh — seoflow</span>
+        </div>
+        <div class="terminal-body">
+          <div class="terminal-line" style="animation-delay:.05s"><span class="t-prompt">$</span> <span class="t-cmd">npx seoflow audit yoursite.com</span></div>
+          <div class="terminal-line blank" style="animation-delay:.1s"></div>
+          <div class="terminal-line" style="animation-delay:.2s"><span class="t-ok">✓</span> <span class="t-muted">Crawled 148 pages</span></div>
+          <div class="terminal-line" style="animation-delay:.3s"><span class="t-ok">✓</span> <span class="t-muted">Checked schema, canonicals, hreflang</span></div>
+          <div class="terminal-line" style="animation-delay:.4s"><span class="t-ok">✓</span> <span class="t-muted">Ran all 12 pipeline steps</span></div>
+          <div class="terminal-line blank" style="animation-delay:.45s"></div>
+          <div class="terminal-line" style="animation-delay:.55s">Health score: <span class="t-num">78/100</span></div>
+          <div class="terminal-line" style="animation-delay:.65s"><span class="t-amber">3 quick wins found</span></div>
+          <div class="terminal-line" style="animation-delay:.75s"><span class="t-muted">  → Missing FAQ schema (4 pages)</span></div>
+          <div class="terminal-line" style="animation-delay:.85s"><span class="t-muted">  → Thin content (2 pages &lt; 300 words)</span></div>
+          <div class="terminal-line" style="animation-delay:.95s"><span class="t-muted">  → 1 broken internal link</span></div>
+          <div class="terminal-line blank" style="animation-delay:1s"></div>
+          <div class="terminal-line" style="animation-delay:1.1s"><span class="t-prompt">$</span> <span class="t-cmd">seoflow fix</span></div>
+        </div>
+      </div>
+      <p class="terminal-caption">Illustrative output from a local audit run.</p>
+    </div>
+  </div>
+</section>
 
-<section id="quick-start"><div class="container section-centered">
-<h2 class="section-title reveal">Quick start</h2>
-<p class="section-subtitle reveal">Live in under a minute.</p>
-<div style="max-width:640px;margin:0 auto;text-align:left" class="reveal"><pre><code>npx seoflow audit https://example.com
+<section id="features">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title">Why SeoFlow</h2>
+      <p class="section-subtitle">Everything for programmatic SEO, running locally. No per-seat pricing, no lock-in.</p>
+    </div>
+    <div class="split-grid">
+      <dl class="spec-list">
+        <div class="spec-row">
+          <dt>Lives in your repo</dt>
+          <dd>No login, no seats. Content and API keys stay on your machine, and every change is a reviewable git diff.</dd>
+        </div>
+        <div class="spec-row">
+          <dt>19 AI agents</dt>
+          <dd>Technical, content, schema, local SEO, GEO, drift detection, backlinks, programmatic pages, image generation, llms.txt.</dd>
+        </div>
+        <div class="spec-row">
+          <dt>Seven-provider fallback</dt>
+          <dd>Gemini, OpenRouter, Anthropic, any OpenAI-compatible endpoint, or local CLI agents. Add one key and it runs.</dd>
+        </div>
+        <div class="spec-row">
+          <dt>Self-learning priority</dt>
+          <dd>Records what actually moved Search Console and re-ranks the next run, so the highest-leverage page goes first.</dd>
+        </div>
+        <div class="spec-row">
+          <dt>Graceful degradation</dt>
+          <dd>No Ahrefs key? No NeuronWriter? Those steps skip silently — nothing crashes on a missing key.</dd>
+        </div>
+        <div class="spec-row">
+          <dt>Zero-setup audits</dt>
+          <dd><code>npx seoflow audit yoursite.com</code> returns a health score and an action plan before you've written any config.</dd>
+        </div>
+      </dl>
 
-npm install -D seoflow
-npx seoflow init</code></pre></div>
-<div class="cta reveal" style="display:flex;gap:12px;justify-content:center;margin-top:32px;flex-wrap:wrap">
-<a href="https://github.com/imsankz/SEOflow" class="btn btn-primary">📦 Install on GitHub</a>
-</div></div></section>
+      <div class="filetree" aria-hidden="true">
+        <pre><span class="root">yoursite/</span>
+├─ .seoflow/
+│  ├─ config.yml         <span class="comment"># providers, keys, thresholds</span>
+│  └─ brain-vault.json   <span class="comment"># what worked last run</span>
+├─ seoflow-reports/
+│  └─ <span class="path">2026-09-04-health.md</span>
+└─ content/
+   └─ blog/…             <span class="comment"># generated drafts, plain files</span></pre>
+        <div class="filetree-note">Illustrative — folder names mirror the idea, adjust to match your actual repo.</div>
+      </div>
+    </div>
+  </div>
+</section>
 
-<section id="series"><div class="container section-centered">
-<h2 class="section-title reveal">The <span class="gradient-text">flow</span> series</h2>
-<p class="section-subtitle reveal">Free engines + your own AI agent. MIT, npm, no upsells.</p>
-<div class="flow-cards">
-<div class="flow-card reveal"><div class="icon">🔐</div><h3>SECflow</h3><p>Secret + dependency scanning with AI-ready fix briefs.</p><a href="https://imsankz.github.io/SECflow/" class="btn btn-small btn-secondary">View →</a></div>
-<div class="flow-card reveal"><div class="icon">🌊</div><h3>SeoFlow</h3><p>Audit, links, content gen, GSC. You are here.</p><span class="tag">You are here</span></div>
-<div class="flow-card reveal"><div class="icon">🔗</div><h3>BacklinkFlow</h3><p>1,123 directories, AI copy, Playwright submits.</p><a href="https://imsankz.github.io/backlinkflow/" class="btn btn-small btn-secondary">View →</a></div>
-</div></div></section>
+<section id="pipeline">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title">A 12-step pipeline</h2>
+      <p class="section-subtitle">Dependency-aware orchestrator with brain-vault logging and automatic provider fallback.</p>
+    </div>
 
-<footer><div class="container">
-<div class="footer-grid">
-<div class="footer-col"><h4>SeoFlow</h4><ul>
-<li><a href="https://github.com/imsankz/SEOflow">GitHub</a></li>
-<li><a href="https://www.npmjs.com/package/seoflow">npm</a></li>
-<li><a href="https://github.com/imsankz/SEOflow/releases">Releases</a></li>
-</ul></div>
-<div class="footer-col"><h4>Docs</h4><ul>
-<li><a href="https://github.com/imsankz/SEOflow/blob/main/docs/getting-started.md">Getting started</a></li>
-<li><a href="https://github.com/imsankz/SEOflow/blob/main/CHANGELOG.md">Changelog</a></li>
-</ul></div>
-<div class="footer-col"><h4>Series</h4><ul>
-<li><a href="https://imsankz.github.io/SECflow/">SECflow</a></li>
-<li><a href="https://imsankz.github.io/SEOflow/">SeoFlow</a></li>
-<li><a href="https://imsankz.github.io/backlinkflow/">BacklinkFlow</a></li>
-</ul></div>
-<div class="footer-col"><h4>Built by</h4><ul>
-<li><a href="https://github.com/imsankz">@imsankz</a></li>
-<li><div id="kofiwidget2"></div></li>
-<li><span style="color:var(--text-muted);font-size:13px">MIT</span></li>
-</ul></div>
-</div>
-<div class="footer-bottom"><p>SeoFlow · MIT · SEO without the SaaS bill</p></div>
-</div></footer>
-<script>
-const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target)}}),{threshold:0.12});
-document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
-</script>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-num">19</div><div class="stat-label">Agents</div></div>
+      <div class="stat"><div class="stat-num">12</div><div class="stat-label">Steps</div></div>
+      <div class="stat"><div class="stat-num">7</div><div class="stat-label">Providers</div></div>
+    </div>
+
+    <ol class="pipeline-list">
+      <li class="pipeline-step"><span class="pipeline-index">0</span><div class="pipeline-body"><h3>Keywords</h3><p>Ahrefs, SEMrush, or Ubersuggest → focus keyword and related terms.</p></div></li>
+      <li class="pipeline-step"><span class="pipeline-index">1</span><div class="pipeline-body"><h3>Meta</h3><p>Schema, description length, focus keyword, last-modified date.</p></div></li>
+      <li class="pipeline-step"><span class="pipeline-index">2</span><div class="pipeline-body"><h3>Links</h3><p>Internal links from your configured triggers.</p></div></li>
+      <li class="pipeline-step"><span class="pipeline-index">3</span><div class="pipeline-body"><h3>Images</h3><p>Pexels or Unsplash, one image per H2 section.</p></div></li>
+      <li class="pipeline-step"><span class="pipeline-index">4</span><div class="pipeline-body"><h3>Neuron</h3><p>NLP targets, missing terms, People Also Ask coverage.</p></div></li>
+      <li class="pipeline-step"><span class="pipeline-index">5</span><div class="pipeline-body"><h3>Content</h3><p>FAQ expansion, thin-section rewrite, term weaving.</p></div></li>
+      <li class="pipeline-step"><span class="pipeline-index">6</span><div class="pipeline-body"><h3>Review</h3><p>1–10 score with quick wins, auto-fixes title and meta.</p></div></li>
+      <li class="pipeline-step"><span class="pipeline-index">7</span><div class="pipeline-body"><h3>Schema</h3><p>16 Schema.org types, validated before it's written.</p></div></li>
+      <li class="pipeline-step"><span class="pipeline-index">8</span><div class="pipeline-body"><h3>Quality</h3><p>E-E-A-T signals and readability checks.</p></div></li>
+      <li class="pipeline-step"><span class="pipeline-index">9</span><div class="pipeline-body"><h3>Technical</h3><p>Broken links, redirects, canonical tags, hreflang, sitemap.</p></div></li>
+      <li class="pipeline-step"><span class="pipeline-index">10</span><div class="pipeline-body"><h3>Fact-check</h3><p>Price and claim verification via search grounding.</p></div></li>
+      <li class="pipeline-step"><span class="pipeline-index">11</span><div class="pipeline-body"><h3>Report</h3><p>Health score, issues, and quick wins, saved locally.</p></div></li>
+    </ol>
+  </div>
+</section>
+
+<section id="comparison">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title">SeoFlow vs. SaaS</h2>
+      <p class="section-subtitle">Same outcomes most tools promise. None of the rent.</p>
+    </div>
+    <div class="diff-table-wrap">
+      <table class="diff-table">
+        <caption class="visually-hidden">Feature comparison of Surfer, Clearscope, and SeoFlow</caption>
+        <thead>
+          <tr><th scope="col"></th><th scope="col">Surfer</th><th scope="col">Clearscope</th><th scope="col" class="col-flow">SeoFlow</th></tr>
+        </thead>
+        <tbody>
+          <tr><th scope="row">Cost</th><td>$89–399/mo</td><td>$89–299/mo</td><td class="col-flow"><span class="mark-yes">+</span>Free, MIT</td></tr>
+          <tr><th scope="row">Runs in</th><td>Dashboard</td><td>Dashboard</td><td class="col-flow"><span class="mark-yes">+</span>Your repo</td></tr>
+          <tr><th scope="row">AI provider</th><td>Locked</td><td>Locked</td><td class="col-flow"><span class="mark-yes">+</span>Any OpenAI-compatible</td></tr>
+          <tr><th scope="row">Fact-check</th><td><span class="mark-no">−</span>Not offered</td><td><span class="mark-no">−</span>Not offered</td><td class="col-flow"><span class="mark-yes">+</span>Search-grounded</td></tr>
+          <tr><th scope="row">GEO / drift</th><td><span class="mark-no">−</span>Not offered</td><td><span class="mark-no">−</span>Not offered</td><td class="col-flow"><span class="mark-yes">+</span>Built in</td></tr>
+          <tr><th scope="row">Self-learning</th><td><span class="mark-no">−</span>Not offered</td><td><span class="mark-no">−</span>Not offered</td><td class="col-flow"><span class="mark-yes">+</span>GSC re-ranking</td></tr>
+          <tr><th scope="row">Lock-in</th><td><span class="mark-no">−</span>High</td><td><span class="mark-no">−</span>High</td><td class="col-flow"><span class="mark-yes">+</span>None</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="quick-start">
+  <div class="container">
+    <div class="section-head">
+      <h2 class="section-title">Quick start</h2>
+      <p class="section-subtitle">Live in under a minute.</p>
+    </div>
+    <div class="quickstart-grid">
+      <div class="terminal">
+        <div class="terminal-bar">
+          <span class="terminal-dot"></span><span class="terminal-dot"></span><span class="terminal-dot"></span>
+          <span class="terminal-title">zsh — install</span>
+        </div>
+        <div class="terminal-body">
+          <div class="terminal-line" style="animation:none;opacity:1"><span class="t-prompt">$</span> <span class="t-cmd">npx seoflow audit https://example.com</span></div>
+          <div class="terminal-line blank" style="animation:none;opacity:1"></div>
+          <div class="terminal-line" style="animation:none;opacity:1"><span class="t-prompt">$</span> <span class="t-cmd">npm install -D seoflow</span></div>
+          <div class="terminal-line" style="animation:none;opacity:1"><span class="t-prompt">$</span> <span class="t-cmd">npx seoflow init</span></div>
+        </div>
+      </div>
+      <ol class="mini-steps">
+        <li><div><strong>Audit first, no install</strong><span>Run a health check against any URL with a single <code>npx</code> command.</span></div></li>
+        <li><div><strong>Add it to your repo</strong><span>Install as a dev dependency once you're ready to generate content and fixes.</span></div></li>
+        <li><div><strong>Point it at one AI key</strong><span>Any of the seven supported providers. Missing keys just skip that step.</span></div></li>
+      </ol>
+    </div>
+    <div class="cta-row" style="margin-top:40px">
+      <a href="https://github.com/imsankz/SEOflow" class="btn btn-secondary">View on GitHub</a>
+      <a href="https://github.com/imsankz/SEOflow/blob/main/docs/getting-started.md" class="btn btn-ghost">Read the docs →</a>
+    </div>
+  </div>
+</section>
+
+<section id="report">
+  <div class="container report-proof">
+    <div>
+      <img class="screenshot-frame" style="width:100%;display:block" src="audit-report.png" alt="SeoFlow health report showing an overall score, a list of issues by severity, and quick-win recommendations" loading="lazy" decoding="async"/>
+    </div>
+    <div>
+      <h2 class="section-title">What the report actually shows</h2>
+      <p class="section-subtitle">Every run leaves a local file, not a login you have to remember.</p>
+      <ul class="proof-list">
+        <li>An overall health score you can track between runs</li>
+        <li>Issues ranked by how much they're likely worth fixing</li>
+        <li>Quick wins, called out separately from long-term work</li>
+        <li>A plain-file report, committed to your repo like anything else</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section id="faq">
+  <div class="container container-narrow">
+    <div class="section-head">
+      <h2 class="section-title">Questions</h2>
+    </div>
+    <div class="faq-list">
+      <details class="faq-item">
+        <summary>Do I need API keys to try SeoFlow?</summary>
+        <p class="faq-a">No. A URL audit runs with zero API keys. Content generation and the other AI-driven steps need one key from any supported provider.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Which AI providers does SeoFlow support?</summary>
+        <p class="faq-a">Gemini, OpenRouter, Anthropic, any OpenAI-compatible endpoint, and local CLI agents. Add one key and the pipeline runs; missing keys just skip that step.</p>
+      </details>
+      <details class="faq-item">
+        <summary>How is this different from Surfer or Clearscope?</summary>
+        <p class="faq-a">Surfer and Clearscope are hosted dashboards with per-seat pricing and a locked-in AI provider. SeoFlow is an MIT-licensed CLI tool that runs in your own repo, with your own AI key, and no monthly cost.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Does my content or site data leave my machine?</summary>
+        <p class="faq-a">No. SeoFlow runs locally against your repo. The only outbound calls are to the AI provider and data sources you configure yourself.</p>
+      </details>
+      <details class="faq-item">
+        <summary>Is SeoFlow really free?</summary>
+        <p class="faq-a">The tool is free and MIT-licensed. You only pay for whichever AI provider you connect, at that provider's own rates.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section id="series-full">
+  <div class="container">
+    <div class="closing-cta">
+      <div>
+        <h2>Ready to see your score?</h2>
+        <p><code>npx seoflow audit yoursite.com</code> — no signup, no API key required for a URL scan.</p>
+      </div>
+      <div class="cta-actions">
+        <a href="https://github.com/imsankz/SEOflow" class="btn btn-primary">View on GitHub</a>
+        <a href="#quick-start" class="btn btn-secondary">Back to quick start</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="#" class="logo"><span class="logo-icon" aria-hidden="true">🌊</span><span>SeoFlow</span></a>
+        <p>An open-source SEO pipeline that runs in your repo. MIT-licensed, no SaaS bill.</p>
+      </div>
+      <div class="footer-col">
+        <h4>Project</h4>
+        <ul>
+          <li><a href="https://github.com/imsankz/SEOflow">GitHub</a></li>
+          <li><a href="https://www.npmjs.com/package/seoflow">npm</a></li>
+          <li><a href="https://github.com/imsankz/SEOflow/releases">Releases</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Docs</h4>
+        <ul>
+          <li><a href="https://github.com/imsankz/SEOflow/blob/main/docs/getting-started.md">Getting started</a></li>
+          <li><a href="https://github.com/imsankz/SEOflow/blob/main/CHANGELOG.md">Changelog</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h4>Flow series</h4>
+        <ul>
+          <li><a href="https://imsankz.github.io/SECflow/">SecFlow</a></li>
+          <li><a href="https://imsankz.github.io/SEOflow/">SeoFlow</a></li>
+          <li><a href="https://imsankz.github.io/backlinkflow/">BacklinkFlow</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>SeoFlow · MIT license</span>
+      <div id="kofiwidget2"></div>
+    </div>
+  </div>
+</footer>
+
 <script type="text/javascript" src="https://storage.ko-fi.com/cdn/widget/Widget_2.js"></script>
 <script type="text/javascript">kofiwidget2.init('Buy me a Coffee','#72a4f2','B0B4EDYFG');kofiwidget2.draw();</script>
-</body></html>
+</body>
+</html>
