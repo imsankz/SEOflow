@@ -1,5 +1,6 @@
 import { StepInput, StepOutput } from '../lib/types';
 import { ReportGenerator } from '../lib/reports/reports';
+import { getSiteUrl } from '../lib/config';
 import { countWords, countInternalLinks, countImages } from '../lib/mdx-parser';
 
 export interface ReportExportConfig {
@@ -46,6 +47,17 @@ function computeScore(input: StepInput): number {
   return Math.max(0, Math.min(100, Math.round(raw - deduction)));
 }
 
+export function buildReportUrl(slug: string, frontmatter: StepInput['frontmatter'], siteUrl = getSiteUrl()): string {
+  if (/^https?:\/\//i.test(slug)) return slug;
+  const base = /^https?:\/\//i.test(siteUrl) ? siteUrl : `https://${siteUrl}`;
+  const normalizedPillar = typeof frontmatter.pillar === 'string' ? frontmatter.pillar.replace(/^\/+|\/+$/g, '') : '';
+  const normalizedSlug = slug.replace(/^\/+|\/+$/g, '');
+  const route = normalizedPillar && !normalizedSlug.startsWith(`${normalizedPillar}/`)
+    ? `${normalizedPillar}/${normalizedSlug}`
+    : normalizedSlug;
+  return new URL(route, base.endsWith('/') ? base : `${base}/`).toString();
+}
+
 export function stepExportReport(input: StepInput, options: ReportExportConfig = {}): StepOutput {
   const {
     format = 'pdf',
@@ -66,7 +78,7 @@ export function stepExportReport(input: StepInput, options: ReportExportConfig =
     const quickWins = Array.isArray(input.frontmatter.quickWins) ? input.frontmatter.quickWins : [];
 
     const reportData = {
-      url: input.slug,
+      url: buildReportUrl(input.slug, input.frontmatter),
       score,
       issues,
       warnings,

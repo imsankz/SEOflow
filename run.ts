@@ -24,6 +24,7 @@
  *   --mode <meta|links|images|keywords|neuron|content|review|factcheck|schema|technical|quality|geo|report|all>
  *   --slug <slug>            Process only this post
  *   --dry-run                Preview without writing
+ *   --report-format <pdf|html|json> Report output format (default: pdf)
  *   --limit <n>              Max posts to process (default 10)
  *   --reset-slug <slug>      Re-audit a previously completed post
  */
@@ -54,6 +55,11 @@ const VERB = rawArgs[0] && !rawArgs[0].startsWith('--') ? rawArgs[0] : null;
 const VERB_ARG = rawArgs[1] && !rawArgs[1].startsWith('--') ? rawArgs[1] : null;
 
 const DRY_RUN = rawArgs.includes('--dry-run');
+const REPORT_FORMAT = (() => {
+  const i = rawArgs.indexOf('--report-format');
+  const format = i !== -1 ? rawArgs[i + 1] : 'pdf';
+  return ['pdf', 'html', 'json'].includes(format) ? format as 'pdf' | 'html' | 'json' : 'pdf';
+})();
 const LIMIT = (() => { const i = rawArgs.indexOf('--limit'); return i !== -1 ? parseInt(rawArgs[i + 1]) || 10 : 10; })();
 const SLUG_FILTER = (() => {
   // Support: seoflow audit <slug>  OR  --slug <slug>
@@ -63,8 +69,12 @@ const SLUG_FILTER = (() => {
 })();
 const RESET_SLUG = (() => { const i = rawArgs.indexOf('--reset-slug'); return i !== -1 ? rawArgs[i + 1] : null; })();
 const MODE = (() => {
-  // Verb → mode mapping
-  if (VERB === 'audit') return 'all';
+  const validModes = ['all', 'meta', 'links', 'affiliates', 'images', 'keywords', 'neuron', 'content', 'review', 'factcheck', 'schema', 'technical', 'quality', 'geo', 'bluf', 'report', 'reciprocal-links'];
+  if (VERB === 'audit') {
+    const i = rawArgs.indexOf('--mode');
+    const modeArg = i !== -1 ? rawArgs[i + 1] : 'all';
+    return validModes.includes(modeArg) ? modeArg : 'all';
+  }
   if (VERB === 'generate') return 'generate';
   if (VERB === 'publish') return 'publish';
   if (VERB === 'cluster') return 'cluster';
@@ -72,9 +82,6 @@ const MODE = (() => {
   if (VERB === 'bluf') return 'bluf';
   const i = rawArgs.indexOf('--mode');
   const modeArg = i !== -1 ? rawArgs[i + 1] : 'all';
-
-  // Validate mode
-  const validModes = ['all', 'meta', 'links', 'affiliates', 'images', 'keywords', 'neuron', 'content', 'review', 'factcheck', 'schema', 'technical', 'quality', 'geo', 'bluf', 'report', 'reciprocal-links'];
   return validModes.includes(modeArg) ? modeArg : 'all';
 })();
 
@@ -832,7 +839,7 @@ export async function runPipeline(): Promise<void> {
   const pipelineStartTime = Date.now();
   const { processPost } = await import('./pipeline/steps');
   for (const c of candidates) {
-    const r = await processPost(c.slug, c.filePath, gscPages, auditLog, { mode: MODE, skipAlreadyDone: !SLUG_FILTER && MODE === 'all', dryRun: DRY_RUN });
+    const r = await processPost(c.slug, c.filePath, gscPages, auditLog, { mode: MODE, skipAlreadyDone: !SLUG_FILTER && MODE === 'all', dryRun: DRY_RUN, reportFormat: REPORT_FORMAT });
     results.push(r);
 
     // Record to brain vault

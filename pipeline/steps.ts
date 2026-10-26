@@ -855,6 +855,7 @@ interface ProcessPostOptions {
   mode: string;
   skipAlreadyDone?: boolean;
   dryRun?: boolean;
+  reportFormat?: 'pdf' | 'html' | 'json';
   /** Shared AI call counter for the whole run — enforces aiLimits.maxCallsPerRun */
   aiCallCounter?: { count: number };
 }
@@ -1076,7 +1077,7 @@ export async function processPost(
       content: state.content,
       frontmatter: state.frontmatter,
     }, {
-      format: 'pdf',
+      format: opts.reportFormat ?? 'pdf',
       outputDir: 'reports',
     });
     allChanges.push(...reportResult.changes);

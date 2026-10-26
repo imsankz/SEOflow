@@ -8377,6 +8377,10 @@ var init_reports = __esm({
         try {
           if (format === "pdf") {
             return PDFGenerator.generateSimpleReport(data, new URL(data.url).hostname, outputPath);
+          } else if (format === "json") {
+            fs25.writeFileSync(outputPath, JSON.stringify({ generatedAt: (/* @__PURE__ */ new Date()).toISOString(), version: "1.0", data }, null, 2));
+            console.log(`\u2705 Report generated: ${outputPath}`);
+            return outputPath;
           } else {
             const args = this.buildArgs(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath);
             const result = spawnSync5(PythonManager.getPythonPath(), args, { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] });
@@ -8493,6 +8497,14 @@ function computeScore(input) {
   const raw = (titleScore + descScore + wordScore + linkScore + imageScore + schemaScore) / 6;
   return Math.max(0, Math.min(100, Math.round(raw - deduction)));
 }
+function buildReportUrl(slug, frontmatter, siteUrl = getSiteUrl()) {
+  if (/^https?:\/\//i.test(slug)) return slug;
+  const base = /^https?:\/\//i.test(siteUrl) ? siteUrl : `https://${siteUrl}`;
+  const normalizedPillar = typeof frontmatter.pillar === "string" ? frontmatter.pillar.replace(/^\/+|\/+$/g, "") : "";
+  const normalizedSlug = slug.replace(/^\/+|\/+$/g, "");
+  const route = normalizedPillar && !normalizedSlug.startsWith(`${normalizedPillar}/`) ? `${normalizedPillar}/${normalizedSlug}` : normalizedSlug;
+  return new URL(route, base.endsWith("/") ? base : `${base}/`).toString();
+}
 function stepExportReport(input, options = {}) {
   const {
     format = "pdf",
@@ -8510,7 +8522,7 @@ function stepExportReport(input, options = {}) {
     const warnings = Array.isArray(input.frontmatter.warnings) ? input.frontmatter.warnings : [];
     const quickWins = Array.isArray(input.frontmatter.quickWins) ? input.frontmatter.quickWins : [];
     const reportData = {
-      url: input.slug,
+      url: buildReportUrl(input.slug, input.frontmatter),
       score,
       issues,
       warnings,
@@ -8542,6 +8554,7 @@ var init_report_export = __esm({
   "pipeline/report-export.ts"() {
     "use strict";
     init_reports();
+    init_config();
     init_mdx_parser();
   }
 });
@@ -9526,7 +9539,7 @@ async function processPost(slug, filePath, gscPages, auditLog, opts) {
       content: state.content,
       frontmatter: state.frontmatter
     }, {
-      format: "pdf",
+      format: opts.reportFormat ?? "pdf",
       outputDir: "reports"
     });
     allChanges.push(...reportResult.changes);
@@ -9885,11 +9898,7 @@ async function getAccessToken() {
     const tokenResponse = await client.getAccessToken();
     const token = tokenResponse?.token ?? tokenResponse?.access_token;
     if (!token) return null;
-    let projectId;
-    try {
-      projectId = await auth.getProjectId() ?? void 0;
-    } catch {
-    }
+    const projectId = client.quotaProjectId;
     return { token, projectId };
   } catch {
     return null;
@@ -9942,12 +9951,13 @@ function dateStr(daysAgo) {
   return d.toISOString().slice(0, 10);
 }
 function getSiteProperty() {
+  const cfg = loadConfig();
+  if (cfg.gscProperty) return cfg.gscProperty;
   const envOverride = process.env.GSC_SITE_URL;
   if (envOverride) {
     if (envOverride.startsWith("sc-domain:")) return envOverride;
     return envOverride.endsWith("/") ? envOverride : envOverride + "/";
   }
-  const cfg = loadConfig();
   const url = cfg.siteUrl.startsWith("http") ? cfg.siteUrl : `https://${cfg.siteUrl}`;
   return url.endsWith("/") ? url : url + "/";
 }
@@ -10430,6 +10440,11 @@ var rawArgs = process.argv.slice(2);
 var VERB = rawArgs[0] && !rawArgs[0].startsWith("--") ? rawArgs[0] : null;
 var VERB_ARG = rawArgs[1] && !rawArgs[1].startsWith("--") ? rawArgs[1] : null;
 var DRY_RUN = rawArgs.includes("--dry-run");
+var REPORT_FORMAT = (() => {
+  const i = rawArgs.indexOf("--report-format");
+  const format = i !== -1 ? rawArgs[i + 1] : "pdf";
+  return ["pdf", "html", "json"].includes(format) ? format : "pdf";
+})();
 var LIMIT = (() => {
   const i = rawArgs.indexOf("--limit");
   return i !== -1 ? parseInt(rawArgs[i + 1]) || 10 : 10;
@@ -10444,7 +10459,12 @@ var RESET_SLUG = (() => {
   return i !== -1 ? rawArgs[i + 1] : null;
 })();
 var MODE = (() => {
-  if (VERB === "audit") return "all";
+  const validModes = ["all", "meta", "links", "affiliates", "images", "keywords", "neuron", "content", "review", "factcheck", "schema", "technical", "quality", "geo", "bluf", "report", "reciprocal-links"];
+  if (VERB === "audit") {
+    const i2 = rawArgs.indexOf("--mode");
+    const modeArg2 = i2 !== -1 ? rawArgs[i2 + 1] : "all";
+    return validModes.includes(modeArg2) ? modeArg2 : "all";
+  }
   if (VERB === "generate") return "generate";
   if (VERB === "publish") return "publish";
   if (VERB === "cluster") return "cluster";
@@ -10452,7 +10472,6 @@ var MODE = (() => {
   if (VERB === "bluf") return "bluf";
   const i = rawArgs.indexOf("--mode");
   const modeArg = i !== -1 ? rawArgs[i + 1] : "all";
-  const validModes = ["all", "meta", "links", "affiliates", "images", "keywords", "neuron", "content", "review", "factcheck", "schema", "technical", "quality", "geo", "bluf", "report", "reciprocal-links"];
   return validModes.includes(modeArg) ? modeArg : "all";
 })();
 async function cmdCluster() {
@@ -11141,7 +11160,7 @@ ${"\u2500".repeat(60)}`);
   const pipelineStartTime = Date.now();
   const { processPost: processPost2 } = await Promise.resolve().then(() => (init_steps(), steps_exports));
   for (const c of candidates) {
-    const r = await processPost2(c.slug, c.filePath, gscPages, auditLog, { mode: MODE, skipAlreadyDone: !SLUG_FILTER && MODE === "all", dryRun: DRY_RUN });
+    const r = await processPost2(c.slug, c.filePath, gscPages, auditLog, { mode: MODE, skipAlreadyDone: !SLUG_FILTER && MODE === "all", dryRun: DRY_RUN, reportFormat: REPORT_FORMAT });
     results.push(r);
     if (!DRY_RUN) {
       try {

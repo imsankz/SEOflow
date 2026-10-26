@@ -58,8 +58,11 @@ export class ReportGenerator {
       if (format === 'pdf') {
         // Use PDF generator for PDF format
         return PDFGenerator.generateSimpleReport(data, new URL(data.url).hostname, outputPath);
+      } else if (format === 'json') {
+        fs.writeFileSync(outputPath, JSON.stringify({ generatedAt: new Date().toISOString(), version: '1.0', data }, null, 2));
+        console.log(`✅ Report generated: ${outputPath}`);
+        return outputPath;
       } else {
-        // Use other formats directly
         const args = this.buildArgs(data, format, includeTechnical, includeContent, includeSchema, includeBacklinks, outputPath);
 
         const result = spawnSync(PythonManager.getPythonPath(), args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] });
