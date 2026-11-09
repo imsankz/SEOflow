@@ -1303,7 +1303,7 @@ var init_openrouter = __esm({
   "lib/providers/openrouter.ts"() {
     "use strict";
     init_config();
-    BASE_URL2 = "https://openrouter.ai/api/v1/chat/completions";
+    BASE_URL2 = process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1/chat/completions";
     openrouterProvider = {
       id: "openrouter",
       name: "OpenRouter (300+ models)",

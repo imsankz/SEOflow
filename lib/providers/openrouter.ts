@@ -6,7 +6,7 @@
 import { getSiteUrl, loadConfig } from '../config';
 import type { LLMChatInput, LLMChatResult, LLMProvider, ProviderAvailability } from './types';
 
-const BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const BASE_URL = process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1/chat/completions';
 
 export const openrouterProvider: LLMProvider = {
   id: 'openrouter',
