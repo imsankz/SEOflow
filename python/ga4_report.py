@@ -394,6 +394,106 @@ def country_breakdown(
     return result
 
 
+def notfound_pages_report(
+    property_id: str,
+    days: int = 90,
+    limit: int = 200,
+) -> dict:
+    """
+    Identify 404 / Not Found pages by their request path.
+
+    The site's NotFoundTracker fires a page_view on the requested (missing) URL,
+    so the Pages report carries the real path under pageTitle 'Not Found' (and
+    variants like 'Page Not Found'). This report returns every pagePath whose
+    pageTitle contains 'Not Found', with traffic + engagement metrics.
+
+    Args:
+        property_id: GA4 property ID (numeric or 'properties/123456789').
+        days: Number of days to query (default: 90).
+        limit: Max rows (default: 200).
+
+    Returns:
+        Dictionary with per-path rows (pagePath, pageTitle, views, users,
+        sessions, events, engagement metrics) + totals.
+    """
+    result = {
+        "property": property_id,
+        "report": "not_found_pages",
+        "date_range": None,
+        "paths": [],
+        "totals": {},
+        "error": None,
+    }
+
+    client = _build_ga4_client()
+    if not client:
+        result["error"] = "Could not build GA4 client."
+        return result
+
+    prop = _resolve_property(property_id)
+    start_date = (datetime.now() - timedelta(days=days)).strftime("%Y-%m-%d")
+    end_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+    result["date_range"] = {"start": start_date, "end": end_date}
+
+    try:
+        request = RunReportRequest(
+            property=prop,
+            dimensions=[Dimension(name="pagePath"), Dimension(name="pageTitle")],
+            metrics=[
+                Metric(name="screenPageViews"),
+                Metric(name="totalUsers"),
+                Metric(name="sessions"),
+                Metric(name="eventCount"),
+                Metric(name="userEngagementDuration"),
+                Metric(name="engagementRate"),
+            ],
+            date_ranges=[DateRange(start_date=start_date, end_date=end_date)],
+            dimension_filter=FilterExpression(
+                filter=Filter(
+                    field_name="pageTitle",
+                    string_filter=Filter.StringFilter(
+                        match_type=Filter.StringFilter.MatchType.CONTAINS,
+                        value="Not Found",
+                    ),
+                )
+            ),
+            order_bys=[
+                OrderBy(metric=OrderBy.MetricOrderBy(metric_name="screenPageViews"), desc=True)
+            ],
+            limit=limit,
+            return_property_quota=True,
+        )
+        response = client.run_report(request)
+        for row in response.rows:
+            result["paths"].append({
+                "page_path": row.dimension_values[0].value,
+                "page_title": row.dimension_values[1].value,
+                "views": int(row.metric_values[0].value),
+                "users": int(row.metric_values[1].value),
+                "sessions": int(row.metric_values[2].value),
+                "events": int(row.metric_values[3].value),
+                "avg_engagement_duration_s": round(float(row.metric_values[4].value) / (int(row.metric_values[2].value) or 1), 1),
+                "engagement_rate": round(float(row.metric_values[5].value) * 100, 1),
+            })
+
+        result["totals"] = {
+            "distinct_paths": len(result["paths"]),
+            "total_views": sum(p["views"] for p in result["paths"]),
+            "total_users": sum(p["users"] for p in result["paths"]),
+        }
+
+        if response.property_quota:
+            pq = response.property_quota
+            result["quota_tokens_used"] = {
+                "daily_remaining": pq.tokens_per_day.remaining if pq.tokens_per_day else None,
+                "hourly_remaining": pq.tokens_per_hour.remaining if pq.tokens_per_hour else None,
+            }
+    except Exception as e:
+        result["error"] = f"GA4 not-found report error: {e}"
+
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="GA4 Data API - organic traffic reporting"
@@ -405,7 +505,7 @@ def main():
     parser.add_argument("--days", "-d", type=int, default=28, help="Number of days (default: 28)")
     parser.add_argument(
         "--report", "-r",
-        choices=["organic", "top-pages", "device", "country"],
+        choices=["organic", "top-pages", "device", "country", "not-found"],
         default="organic",
         help="Report type (default: organic)",
     )
@@ -431,6 +531,8 @@ def main():
 
     if args.report == "top-pages":
         result = top_pages_report(prop, args.days, args.limit)
+    elif args.report == "not-found":
+        result = notfound_pages_report(prop, args.days, args.limit)
     elif args.report == "device":
         result = device_breakdown(prop, args.days)
     elif args.report == "country":
@@ -446,7 +548,18 @@ def main():
     if args.json:
         print(json.dumps(result, indent=2, default=str))
     else:
-        if args.report == "top-pages":
+        if args.report == "not-found":
+            print(f"=== GA4 Not Found Pages ===")
+            print(f"Property: {prop} | Period: {result.get('date_range', {}).get('start')} to {result.get('date_range', {}).get('end')}")
+            totals = result.get("totals", {})
+            print(f"Distinct 404 paths: {totals.get('distinct_paths', 0):,} | Views: {totals.get('total_views', 0):,} | Users: {totals.get('total_users', 0):,}")
+            if result.get("error"):
+                print(f"Error: {result['error']}", file=sys.stderr)
+            print()
+            for i, p in enumerate(result.get("paths", []), 1):
+                print(f"  {i:2d}. {p['page_path']}  ({p['page_title']})")
+                print(f"      Views: {p['views']:,} | Users: {p['users']:,} | Engagement: {p['engagement_rate']}% | AvgDur: {p['avg_engagement_duration_s']}s")
+        elif args.report == "top-pages":
             print(f"=== Top Organic Landing Pages ===")
             print(f"Property: {prop} | Period: {result.get('date_range', {}).get('start')} to {result.get('date_range', {}).get('end')}")
             print(f"Total organic sessions: {result.get('total_organic_sessions', 0):,}")

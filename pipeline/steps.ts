@@ -25,9 +25,12 @@ import { stepTechnicalAudit } from './technical';
 import { stepContentQualityAudit } from './content-quality';
 import { stepGeoAudit } from './geo';
 import { stepBlufAudit } from './bluf';
+import { stepEffortScoreAudit } from './effort-score';
 import { stepExportReport } from './report-export';
 import { registerStepRunner, type StepRunner } from '../lib/orchestrator';
 import { appendLog, recordPostRun } from '../lib/brain';
+
+export { stepEffortScoreAudit } from './effort-score';
 import { checkIntegration, SkipStepError } from '../lib/degradation';
 import { extractDataBlock, type ReviewData, isReviewData, type TechnicalData, isTechnicalData } from '../lib/structured-output';
 
@@ -1282,6 +1285,18 @@ export function registerAllStepRunners(): void {
       return { success: true, changes: result.changes, data: { qualityScore: result.changes.length > 0 ? 60 : 50 } };
     } catch (e) {
       return { success: true, changes: [], data: { score: 50 } };
+    }
+  });
+
+  // 2026 Content Effort & Anti-SAFE runner
+  registerStepRunner('effort-audit', async (slug: string) => {
+    try {
+      const post = loadPost(slug);
+      if (!post) return { success: true, changes: [], data: { effortScore: 50 } };
+      const result = await stepEffortScoreAudit({ slug, filePath: post.filePath, content: post.content, frontmatter: post.frontmatter, gsc: {} });
+      return { success: true, changes: result.changes, data: { effortScore: result.data?.breakdown.totalScore ?? 50, rating: result.data?.breakdown.rating } };
+    } catch (e) {
+      return { success: true, changes: [], data: { effortScore: 50 } };
     }
   });
 

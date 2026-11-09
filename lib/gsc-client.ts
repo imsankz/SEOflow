@@ -44,13 +44,10 @@ async function getAccessToken(): Promise<{ token: string; projectId?: string } |
     const token = tokenResponse?.token ?? tokenResponse?.access_token;
     if (!token) return null;
 
-    // Get the quota project ID (needed for ADC user credentials)
-    let projectId: string | undefined;
-    try {
-      projectId = (await auth.getProjectId()) ?? undefined;
-    } catch {
-      // optional — the API call may still work without it on some setups
-    }
+    // Only user ADC credentials need x-goog-user-project. A service account's
+    // resource project is not automatically a usable quota project and sending
+    // it causes a serviceusage.services.use 403 on otherwise valid GSC access.
+    const projectId = (client as any).quotaProjectId as string | undefined;
 
     return { token, projectId };
   } catch {
@@ -118,6 +115,10 @@ function dateStr(daysAgo: number): string {
 // ─── Site URL resolution ──────────────────────────────────────────────────────
 
 function getSiteProperty(): string {
+  const cfg = loadConfig();
+  // Domain properties must be passed as the exact sc-domain: property string.
+  if (cfg.gscProperty) return cfg.gscProperty;
+
   // Allow env override for sc-domain: properties
   const envOverride = process.env.GSC_SITE_URL;
   if (envOverride) {
@@ -126,7 +127,6 @@ function getSiteProperty(): string {
     if (envOverride.startsWith('sc-domain:')) return envOverride;
     return envOverride.endsWith('/') ? envOverride : envOverride + '/';
   }
-  const cfg = loadConfig();
   const url = cfg.siteUrl.startsWith('http') ? cfg.siteUrl : `https://${cfg.siteUrl}`;
   return url.endsWith('/') ? url : url + '/';
 }

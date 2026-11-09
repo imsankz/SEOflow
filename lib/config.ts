@@ -19,6 +19,8 @@ export interface SeoFlowConfig {
   /** Per content-type voice samples: { "guide": "...", "review": "...", "itinerary": "..." } */
   writingSamples?: Record<string, string>;
   postsDir: string;
+  /** Exact Search Console property, e.g. sc-domain:example.com. */
+  gscProperty?: string;
   gscPagesCsv: string;
   gscQueriesCsv: string;
   auditLogPath: string;

@@ -8248,6 +8248,171 @@ var init_bluf2 = __esm({
   }
 });
 
+// lib/effort-score/effort-score.ts
+var EffortScoreAnalyzer;
+var init_effort_score = __esm({
+  "lib/effort-score/effort-score.ts"() {
+    "use strict";
+    EffortScoreAnalyzer = class {
+      static analyze(content, frontmatter = {}) {
+        const diagnostics = [];
+        const recommendations = [];
+        let firsthandScore = 0;
+        const pronounRegex = /\b(i visited|when i visited|in my experience|when i tested|i tested|we tested|when i went|i spent|we spent|during my visit|during our visit|my experience|i noticed|we noticed|i found|we found|i recommend|i bought|we bought|i paid|we paid|i took|we took|in our experience|during my stay|during our stay|we stayed|i stayed|when i walked|we walked|when i was in|my trip|our trip|i personally|firsthand|on the ground|my honest (?:verdict|take|opinion|impression))\b/gi;
+        const pronounMatches = (content.match(pronounRegex) || []).map((m) => m.toLowerCase());
+        const uniquePronouns = new Set(pronounMatches);
+        if (uniquePronouns.size >= 4) firsthandScore += 12;
+        else if (uniquePronouns.size >= 2) firsthandScore += 8;
+        else if (uniquePronouns.size >= 1) firsthandScore += 4;
+        else {
+          recommendations.push('Add authentic firsthand narrative cues ("when I visited", "when I tested", "I bought").');
+        }
+        if (frontmatter.visitedDate) {
+          firsthandScore += 6;
+          diagnostics.push(`Frontmatter visitedDate detected: ${frontmatter.visitedDate}`);
+        } else if (/\b(?:visited in|traveled in|stayed in)\s+(?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4}\b/i.test(content)) {
+          firsthandScore += 4;
+        } else {
+          recommendations.push("Include explicit on-the-ground visit date (e.g., frontmatter `visitedDate: YYYY-MM-DD`).");
+        }
+        if (frontmatter.lastVerified) {
+          firsthandScore += 7;
+          diagnostics.push(`Freshness verification verified: ${frontmatter.lastVerified}`);
+        } else {
+          recommendations.push("Add `lastVerified: YYYY-MM-DD` in frontmatter to signal active fact-checking.");
+        }
+        firsthandScore = Math.min(25, firsthandScore);
+        let visualProofScore = 0;
+        const markdownImages = content.match(/!\[([^\]]*)\]\(([^)]+)\)/g) || [];
+        const jsxImages = content.match(/<(?:img|TravelImage|Image)\b[^>]*>/gi) || [];
+        const totalImages = markdownImages.length + jsxImages.length;
+        if (totalImages >= 5) visualProofScore += 10;
+        else if (totalImages >= 2) visualProofScore += 7;
+        else if (totalImages >= 1) visualProofScore += 4;
+        else recommendations.push("Embed original in-body photos or UI captures; currently lacks visual proof.");
+        let componentScore = 0;
+        if (/<VerifiedData\b/i.test(content)) componentScore += 4;
+        if (/<PersonalVerdict\b/i.test(content)) componentScore += 3;
+        if (/<CalculatorCTA\b/i.test(content)) componentScore += 2;
+        if (/<(?:FAQ|Accordion)\b/i.test(content)) componentScore += 2;
+        visualProofScore += Math.min(10, componentScore);
+        let descriptiveAltCount = 0;
+        for (const img of markdownImages) {
+          const altMatch = img.match(/!\[([^\]]*)\]/);
+          if (altMatch && altMatch[1].trim().length > 10) descriptiveAltCount++;
+        }
+        if (descriptiveAltCount >= 2) visualProofScore += 5;
+        else if (totalImages > 0) visualProofScore += 2;
+        visualProofScore = Math.min(25, visualProofScore);
+        let originalDataScore = 0;
+        const hasTable = /\|[\s-:]+\|/.test(content) || /<table\b/i.test(content) || /<VerifiedData\b/i.test(content);
+        if (hasTable) {
+          originalDataScore += 8;
+        } else {
+          recommendations.push("Add a structured comparison table showing gate prices vs pass totals.");
+        }
+        const priceMatches = content.match(/(?:€|\$|£)\s*\d+(?:[.,]\d{1,2})?|\b\d+(?:[.,]\d{1,2})?\s*(?:EUR|USD|GBP|euros?|dollars?|CZK|HUF|PLN|SEK|NOK|CHF)\b/gi) || [];
+        if (priceMatches.length >= 20) originalDataScore += 8;
+        else if (priceMatches.length >= 8) originalDataScore += 6;
+        else if (priceMatches.length >= 3) originalDataScore += 3;
+        else recommendations.push("Increase specific pricing data points (entry fees, tickets, public transit fares).");
+        const hasDeltaMath = /(?:delta|difference of|saving of|saves? about|net saving|saved €|break-even)\s*(?:€|\$|£)?\s*\d+/i.test(content) || /<VerifiedData[^>]*delta/i.test(content);
+        if (hasDeltaMath) {
+          originalDataScore += 9;
+        } else if (/(?:saving|cheaper|expensive|worth it|cost vs)/i.test(content)) {
+          originalDataScore += 4;
+          recommendations.push('Provide exact mathematical delta calculations (e.g. "saves \u20AC9.90 compared to individual gate tickets").');
+        }
+        originalDataScore = Math.min(25, originalDataScore);
+        let authorshipScore = 0;
+        const author = frontmatter.author || "";
+        if (author && author.trim().length > 3) {
+          authorshipScore += 8;
+          diagnostics.push(`Author identified: ${author}`);
+          if (frontmatter.authorBio || /about the author/i.test(content) || frontmatter.socials) {
+            authorshipScore += 7;
+          } else {
+            authorshipScore += 4;
+          }
+        } else {
+          recommendations.push("Assign a verified, transparent author byline in frontmatter.");
+        }
+        authorshipScore = Math.min(15, authorshipScore);
+        let antiSafeIntroScore = 0;
+        const introSnippet = content.slice(0, 800);
+        const hasFastVerdict = /<AIQuickSummary\b/i.test(introSnippet) || /\*\*(?:verdict|quick answer|bottom line|is it worth it\?)\*\*[:\s]+[^\n]+/i.test(introSnippet);
+        if (hasFastVerdict) {
+          antiSafeIntroScore += 10;
+        } else if (/\b(?:worth it|recommend|verdict)\b/i.test(introSnippet)) {
+          antiSafeIntroScore += 5;
+          recommendations.push("Move primary verdict or `<AIQuickSummary>` above the fold in the first 100 words.");
+        }
+        const fillerPatterns = [
+          /(?:are you|so you are|if you are)\s+planning\s+(?:a\s+trip|to\s+visit)/i,
+          /welcome to (?:our|the) (?:ultimate|complete) guide/i,
+          /let us dive in/i,
+          /nestled in the heart of/i
+        ];
+        let detectedFillers = 0;
+        for (const pattern of fillerPatterns) {
+          if (pattern.test(introSnippet)) detectedFillers++;
+        }
+        if (detectedFillers > 0) {
+          antiSafeIntroScore = Math.max(0, antiSafeIntroScore - detectedFillers * 3);
+          recommendations.push("Remove generic introductory filler phrases to avoid SAFE spam classification.");
+        }
+        const totalScore = firsthandScore + visualProofScore + originalDataScore + authorshipScore + antiSafeIntroScore;
+        let rating = "HIGH_RISK";
+        if (totalScore >= 80) rating = "EXEMPLARY";
+        else if (totalScore >= 65) rating = "GOOD";
+        else if (totalScore >= 50) rating = "MARGINAL";
+        return {
+          firsthandScore,
+          visualProofScore,
+          originalDataScore,
+          authorshipScore,
+          antiSafeIntroScore,
+          totalScore,
+          rating,
+          diagnostics,
+          recommendations
+        };
+      }
+    };
+  }
+});
+
+// pipeline/effort-score.ts
+async function stepEffortScoreAudit(input) {
+  const changes = [];
+  console.log(`     \u{1F3AF} Running 2026 Content Effort & Anti-SAFE audit`);
+  const breakdown = EffortScoreAnalyzer.analyze(input.content, input.frontmatter);
+  changes.push(`\u{1F3C6} Effort Score: ${breakdown.totalScore}/100 [Rating: ${breakdown.rating}]`);
+  changes.push(`   \u2022 Firsthand Experience: ${breakdown.firsthandScore}/25`);
+  changes.push(`   \u2022 Visual Proof & Media: ${breakdown.visualProofScore}/25`);
+  changes.push(`   \u2022 Original Data & Math: ${breakdown.originalDataScore}/25`);
+  changes.push(`   \u2022 Authorship Verifiability: ${breakdown.authorshipScore}/15`);
+  changes.push(`   \u2022 Anti-SAFE & Directness: ${breakdown.antiSafeIntroScore}/10`);
+  if (breakdown.recommendations.length > 0) {
+    changes.push(`\u26A0\uFE0F  Effort recommendations (${breakdown.recommendations.length}):`);
+    breakdown.recommendations.forEach((rec) => changes.push(`      - ${rec}`));
+  }
+  return {
+    content: input.content,
+    frontmatter: input.frontmatter,
+    changes,
+    data: {
+      breakdown
+    }
+  };
+}
+var init_effort_score2 = __esm({
+  "pipeline/effort-score.ts"() {
+    "use strict";
+    init_effort_score();
+  }
+});
+
 // lib/reports/pdf-generator.ts
 import path25 from "path";
 import fs24 from "fs";
@@ -8723,6 +8888,7 @@ __export(steps_exports, {
   processPost: () => processPost,
   registerAllStepRunners: () => registerAllStepRunners,
   stepClaudeSeoReview: () => stepClaudeSeoReview,
+  stepEffortScoreAudit: () => stepEffortScoreAudit,
   stepFactCheck: () => stepFactCheck,
   stepFixFrontmatter: () => stepFixFrontmatter,
   stepGeminiContent: () => stepGeminiContent,
@@ -9696,6 +9862,16 @@ function registerAllStepRunners() {
       return { success: true, changes: [], data: { score: 50 } };
     }
   });
+  registerStepRunner("effort-audit", async (slug) => {
+    try {
+      const post = loadPost(slug);
+      if (!post) return { success: true, changes: [], data: { effortScore: 50 } };
+      const result = await stepEffortScoreAudit({ slug, filePath: post.filePath, content: post.content, frontmatter: post.frontmatter, gsc: {} });
+      return { success: true, changes: result.changes, data: { effortScore: result.data?.breakdown.totalScore ?? 50, rating: result.data?.breakdown.rating } };
+    } catch (e) {
+      return { success: true, changes: [], data: { effortScore: 50 } };
+    }
+  });
   registerStepRunner("technical-audit", async (slug) => {
     try {
       const post = loadPost(slug);
@@ -9816,9 +9992,11 @@ var init_steps = __esm({
     init_content_quality2();
     init_geo();
     init_bluf2();
+    init_effort_score2();
     init_report_export();
     init_orchestrator();
     init_brain();
+    init_effort_score2();
     init_degradation();
     AI_PHRASES = ["nestled", "delve", "vibrant", "treasure trove", "bustling", "hidden gem", "breathtaking", "truly unique", "picturesque", "enchanting", "captivating", "metropolis", "testament to", "rich tapestry", "magical", "whimsical", "wanderlust", "a must-visit"];
     _toolTriggers = null;
@@ -9885,11 +10063,7 @@ async function getAccessToken() {
     const tokenResponse = await client.getAccessToken();
     const token = tokenResponse?.token ?? tokenResponse?.access_token;
     if (!token) return null;
-    let projectId;
-    try {
-      projectId = await auth.getProjectId() ?? void 0;
-    } catch {
-    }
+    const projectId = client.quotaProjectId;
     return { token, projectId };
   } catch {
     return null;
@@ -9942,12 +10116,13 @@ function dateStr(daysAgo) {
   return d.toISOString().slice(0, 10);
 }
 function getSiteProperty() {
+  const cfg = loadConfig();
+  if (cfg.gscProperty) return cfg.gscProperty;
   const envOverride = process.env.GSC_SITE_URL;
   if (envOverride) {
     if (envOverride.startsWith("sc-domain:")) return envOverride;
     return envOverride.endsWith("/") ? envOverride : envOverride + "/";
   }
-  const cfg = loadConfig();
   const url = cfg.siteUrl.startsWith("http") ? cfg.siteUrl : `https://${cfg.siteUrl}`;
   return url.endsWith("/") ? url : url + "/";
 }
